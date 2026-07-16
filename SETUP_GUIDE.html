@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>WorksMail 설치 완료!</title>
+<style>
+@font-face{
+  font-family:'Galmuri11';
+  src:url('static/fonts/Galmuri11.woff2') format('woff2');
+  font-display:swap;
+}
+:root{
+  --pink-0:#fff0fa; --pink-1:#ffd9f2; --pink-2:#ffbfe9; --pink-3:#ff9ede;
+  --magenta:#ff44c8; --magenta-d:#d619a6;
+  --lav-1:#e9d6ff; --lav-2:#cda9ff; --mint:#b6f5e4;
+  --ink:#5a2a55; --ink-soft:#9b5e90;
+  --bevel-lt:#ffffff; --bevel-dk:#b25f9e; --bevel-dk2:#8a3f7a;
+  --face:#ffd0ef; --win-bg:#ffe6f7;
+}
+*{box-sizing:border-box;}
+html{min-height:100%;}
+body{
+  margin:0; min-height:100vh; font-family:'Galmuri11','MS Gothic','Apple SD Gothic Neo',monospace;
+  font-size:13px; color:var(--ink);
+  background:
+    radial-gradient(circle at 20% 15%, #ffc8ec 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, #d9c0ff 0, transparent 45%),
+    repeating-linear-gradient(45deg,#f9c9ec 0 14px,#f4c0e8 14px 28px);
+  background-attachment:fixed;
+  display:flex; justify-content:center; padding:24px 16px 60px;
+  -webkit-font-smoothing:none;
+}
+.desktop{width:100%; max-width:680px;}
+.window{
+  background:var(--win-bg);
+  border:3px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:0 0 0 1px var(--magenta-d), 6px 6px 0 rgba(150,40,120,.35), 0 0 40px rgba(255,80,200,.5);
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between; padding:5px 8px;
+  background:linear-gradient(90deg,var(--magenta) 0%,var(--pink-3) 60%,var(--lav-2) 100%);
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); letter-spacing:.5px;
+}
+.title-btns{display:flex; gap:3px;}
+.tbtn{width:20px;height:18px;line-height:1;font-size:11px;background:var(--face);color:var(--ink);
+  border:2px solid;border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt); display:inline-block; text-align:center;}
+.tbtn-x{background:#ff8fcf;}
+.body{padding:20px 24px;}
+h1{font-size:16px; color:var(--magenta-d); margin:0 0 4px;}
+p.sub{color:var(--ink-soft); font-size:12px; margin:0 0 18px;}
+.panel{background:var(--pink-0); border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  padding:12px; margin-bottom:14px;}
+.panel-title{background:linear-gradient(90deg,var(--magenta),var(--pink-3)); color:#fff;
+  text-shadow:1px 1px 0 var(--magenta-d); padding:4px 10px; margin:-12px -12px 10px; font-size:12px; font-weight:bold;}
+ol{margin:0; padding-left:20px; line-height:2;}
+ol li b{color:var(--magenta-d);}
+.tip{background:var(--lav-1); color:#5a2a90; padding:8px 12px; font-size:11px; margin-top:8px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.btn-link{display:inline-block; margin-top:6px; padding:7px 14px; font-size:12px; color:#fff; text-decoration:none;
+  text-shadow:1px 1px 0 var(--magenta-d); font-weight:bold;
+  background:linear-gradient(var(--magenta),var(--magenta-d));
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);}
+.mint{background:var(--mint); color:#1f7a64; padding:8px 12px; font-size:11px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+</style>
+</head>
+<body>
+<div class="desktop">
+  <div class="window">
+    <div class="titlebar">
+      <span>★ WORKSMAIL.EXE — 설치 완료! ★</span>
+      <div class="title-btns"><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn tbtn-x">×</span></div>
+    </div>
+    <div class="body">
+      <h1>🎉 설치가 끝났어요!</h1>
+      <p class="sub">파일 복사·가상환경·패키지 설치·자동실행 등록까지 전부 자동으로 끝났습니다.
+      이제 아래 순서대로 딱 한 번만 브라우저에서 정보를 채우면 끝이에요.</p>
+
+      <div class="panel">
+        <div class="panel-title">📋 지금 바로 할 일 (브라우저가 이미 열려있을 거예요)</div>
+        <ol>
+          <li><b>관리자 비밀번호</b> 정하기 (처음 접속하면 뜨는 화면)</li>
+          <li><b>모니터링할 메일주소</b> 추가 (info, base 등 공용 계정 + 비밀번호)</li>
+          <li><b>수신자</b> 추가 (요약을 받을 사람 이메일)</li>
+          <li><b>발송 계정</b> 선택</li>
+          <li><b>취합 간격 &amp; 발송 시각</b> 설정 (기본: 매일 08:00 한 번)</li>
+          <li><b>Gemini API 키</b> 입력</li>
+          <li><b>"지금 테스트"</b> 버튼 눌러서 다 잘 연결되는지 확인</li>
+        </ol>
+        <a class="btn-link" href="http://127.0.0.1:5000" target="_blank">관리자 화면 열기 →</a>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">✅ 이미 자동으로 끝난 것</div>
+        <div class="mint">
+          ✔ 파이썬 가상환경 생성 · 필요한 패키지 설치<br>
+          ✔ 작업 스케줄러에 "WorksMail Watch" 등록 (10분마다 자동 확인)<br>
+          ✔ config.yaml 기본 틀 생성
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">💡 참고</div>
+        <div class="tip">
+          관리자 화면은 <b>이 PC에서만</b>(http://127.0.0.1:5000) 열립니다.
+          평소엔 안 켜둬도 되고, 설정을 바꿀 때만 <code>run_admin_ui.bat</code>을 실행하면 돼요.<br><br>
+          더 자세한 내용(문제 해결, 다른 PC로 다시 옮기기 등)은 이 폴더의
+          <b>README.md</b> 파일을 참고하세요.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

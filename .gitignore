@@ -4,3 +4,9 @@ __pycache__/
 config.yaml
 state.json
 worksmail.log
+
+# installer 빌드 산출물 (installer/build_installer.ps1로 다시 만들 수 있음)
+dist/
+installer/payload.zip
+installer/worksmail.sed
+installer/*.DDF
