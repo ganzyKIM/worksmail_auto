@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """worksmail_digest.py 핵심 로직에 대한 회귀 테스트."""
 
+import argparse
 import datetime as dt
 import email
 import json
@@ -41,6 +42,31 @@ class TestImapSinceStr:
         d = dt.datetime(2026, 3, 5, 0, 0, tzinfo=dt.timezone.utc)
         result = w.imap_since_str(d)
         assert result.split("-")[0] == "05"
+
+
+# --------------------------------------------------------------------------- #
+# parse_date_range
+# --------------------------------------------------------------------------- #
+class TestParseDateRange:
+    def test_returns_local_midnight_to_next_midnight_in_utc(self):
+        since_utc, until_utc = w.parse_date_range("2026-07-16")
+        since_local = since_utc.astimezone()
+        until_local = until_utc.astimezone()
+        assert (since_local.year, since_local.month, since_local.day) == (2026, 7, 16)
+        assert since_local.hour == 0 and since_local.minute == 0
+        assert until_local - since_local == dt.timedelta(days=1)
+
+    def test_since_is_before_until(self):
+        since_utc, until_utc = w.parse_date_range("2026-01-01")
+        assert since_utc < until_utc
+
+    def test_invalid_format_raises_value_error(self):
+        with pytest.raises(ValueError):
+            w.parse_date_range("2026/07/16")
+
+    def test_garbage_input_raises_value_error(self):
+        with pytest.raises(ValueError):
+            w.parse_date_range("not-a-date")
 
 
 # --------------------------------------------------------------------------- #
@@ -229,6 +255,31 @@ class TestState:
 # --------------------------------------------------------------------------- #
 # summarize_with_gemini (네트워크는 mock 처리)
 # --------------------------------------------------------------------------- #
+class TestCliArgs:
+    """--date 와 --since-hours 는 동시에 지정할 수 없어야 한다(둘 다 기간 지정 옵션)."""
+
+    def _build_parser(self):
+        # main() 내부의 argparse 정의와 동일한 구조를 재현해 파서만 단위 검증한다.
+        ap = argparse.ArgumentParser()
+        ap.add_argument("--dry-run", action="store_true")
+        group = ap.add_mutually_exclusive_group()
+        group.add_argument("--since-hours", type=float, default=None)
+        group.add_argument("--date", type=str, default=None)
+        ap.add_argument("--test", action="store_true")
+        return ap
+
+    def test_since_hours_and_date_together_is_rejected(self):
+        ap = self._build_parser()
+        with pytest.raises(SystemExit):
+            ap.parse_args(["--since-hours", "24", "--date", "2026-07-16"])
+
+    def test_date_alone_is_accepted(self):
+        ap = self._build_parser()
+        args = ap.parse_args(["--date", "2026-07-16"])
+        assert args.date == "2026-07-16"
+        assert args.since_hours is None
+
+
 class TestSummarizeWithGemini:
     def test_extracts_text_from_successful_response(self, monkeypatch):
         class FakeResp:

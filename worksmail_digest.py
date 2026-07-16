@@ -16,7 +16,13 @@
   python worksmail_digest.py            # 실제 실행(수집→요약→발송)
   python worksmail_digest.py --dry-run  # 발송하지 않고 화면에만 리포트 출력
   python worksmail_digest.py --since-hours 48   # 최근 48시간 강제 수집
+  python worksmail_digest.py --date 2026-07-15  # 특정 날짜 메일만 요약해서 발송(테스트용)
+  python worksmail_digest.py --date 2026-07-15 --dry-run  # 위와 동일 + 발송은 생략
   python worksmail_digest.py --test     # IMAP/SMTP 로그인만 점검
+
+참고: --date 로 실행하면 state.json(마지막 실행 시각)을 갱신하지 않습니다.
+      다음 날 자동 실행되는 정규 배치가 --date 테스트로 인해 메일을 건너뛰지
+      않도록 하기 위함입니다.
 """
 
 import argparse
@@ -94,6 +100,14 @@ def to_utc(d):
 def imap_since_str(d: dt.datetime) -> str:
     ld = d.astimezone()  # 로컬 날짜 기준
     return f"{ld.day:02d}-{_MONTHS[ld.month - 1]}-{ld.year}"
+
+
+def parse_date_range(date_str: str):
+    """'YYYY-MM-DD' 형식의 로컬 날짜 하나를 그날 00:00~다음날 00:00(로컬)
+    구간의 (since_utc, until_utc) 튜플로 변환한다. 형식이 잘못되면 ValueError."""
+    start_naive = dt.datetime.strptime(date_str, "%Y-%m-%d")
+    end_naive = start_naive + dt.timedelta(days=1)
+    return to_utc(start_naive), to_utc(end_naive)
 
 
 def strip_html(html: str) -> str:
@@ -200,7 +214,10 @@ def save_state(state: dict) -> None:
 # --------------------------------------------------------------------------- #
 # IMAP 수집
 # --------------------------------------------------------------------------- #
-def fetch_account(acct: dict, cfg: dict, since_dt: dt.datetime) -> list:
+def fetch_account(acct: dict, cfg: dict, since_dt: dt.datetime,
+                   until_dt: dt.datetime = None) -> list:
+    """since_dt(포함) 이후 메일을 수집한다. until_dt가 주어지면 그 시각
+    이전(미포함) 메일까지만 포함한다 — 특정 날짜 하루치만 볼 때 사용."""
     host = cfg["imap"]["host"]
     port = int(cfg["imap"]["port"])
     limit = int(cfg["body_char_limit"])
@@ -212,7 +229,10 @@ def fetch_account(acct: dict, cfg: dict, since_dt: dt.datetime) -> list:
         M.select("INBOX", readonly=True)  # 읽음 표시를 건드리지 않음
         # 날짜(일) 단위로 1차 필터 후, 아래에서 정확한 시각으로 2차 필터
         search_from = since_dt - dt.timedelta(days=1)
-        typ, data = M.search(None, "SINCE", imap_since_str(search_from))
+        search_criteria = ["SINCE", imap_since_str(search_from)]
+        if until_dt is not None:
+            search_criteria += ["BEFORE", imap_since_str(until_dt + dt.timedelta(days=1))]
+        typ, data = M.search(None, *search_criteria)
         if typ != "OK":
             log(f"  [{acct['email']}] 검색 실패: {typ}")
             return mails
@@ -224,7 +244,9 @@ def fetch_account(acct: dict, cfg: dict, since_dt: dt.datetime) -> list:
             msg = email.message_from_bytes(msgdata[0][1])
             mdt = to_utc(get_msg_datetime(msg))
             if mdt is not None and mdt < since_dt:
-                continue  # 마지막 실행 이전 메일은 제외
+                continue  # 시작 시각 이전 메일은 제외
+            if until_dt is not None and mdt is not None and mdt >= until_dt:
+                continue  # 종료 시각 이후 메일은 제외
             local_dt = mdt.astimezone() if mdt else None
             mails.append({
                 "date": local_dt.strftime("%m-%d %H:%M") if local_dt else "(시각미상)",
@@ -372,8 +394,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="네이버 웍스 공용계정 일일 메일 요약")
     ap.add_argument("--dry-run", action="store_true",
                     help="발송하지 않고 리포트를 화면에만 출력")
-    ap.add_argument("--since-hours", type=float, default=None,
+    range_group = ap.add_mutually_exclusive_group()
+    range_group.add_argument("--since-hours", type=float, default=None,
                     help="최근 N시간 메일을 강제로 수집(state 무시)")
+    range_group.add_argument("--date", type=str, default=None,
+                    help="YYYY-MM-DD 형식. 지정한 날짜 하루치 메일만 수집·요약·발송"
+                         "(테스트용. state.json은 갱신하지 않음)")
     ap.add_argument("--test", action="store_true",
                     help="IMAP/SMTP 로그인만 점검하고 종료")
     args = ap.parse_args()
@@ -385,8 +411,15 @@ def main() -> None:
 
     state = load_state()
     now = dt.datetime.now(dt.timezone.utc)
+    until_dt = None
 
-    if args.since_hours is not None:
+    if args.date is not None:
+        try:
+            since_dt, until_dt = parse_date_range(args.date)
+        except ValueError:
+            log(f"[오류] --date 형식이 올바르지 않습니다. 'YYYY-MM-DD' 형식으로 입력하세요 (예: 2026-07-15). 입력값: {args.date}")
+            sys.exit(1)
+    elif args.since_hours is not None:
         since_dt = now - dt.timedelta(hours=args.since_hours)
     elif state.get("last_run"):
         since_dt = dt.datetime.fromisoformat(state["last_run"])
@@ -395,14 +428,18 @@ def main() -> None:
     else:
         since_dt = now - dt.timedelta(hours=float(cfg["lookback_hours"]))
 
-    log(f"수집 시작 (기준 시각 이후: {since_dt.astimezone():%Y-%m-%d %H:%M} 로컬)")
+    if until_dt is not None:
+        log(f"수집 시작 (구간: {since_dt.astimezone():%Y-%m-%d %H:%M} ~ "
+            f"{until_dt.astimezone():%Y-%m-%d %H:%M} 로컬, --date 테스트 모드)")
+    else:
+        log(f"수집 시작 (기준 시각 이후: {since_dt.astimezone():%Y-%m-%d %H:%M} 로컬)")
 
     collected = []
     total = 0
     for acct in cfg["accounts"]:
         name = acct.get("name") or acct["email"]
         try:
-            mails = fetch_account(acct, cfg, since_dt)
+            mails = fetch_account(acct, cfg, since_dt, until_dt)
             log(f"  {name}: {len(mails)}건")
             collected.append((name, mails))
             total += len(mails)
@@ -412,9 +449,11 @@ def main() -> None:
 
     if total == 0:
         log("신규 메일이 없습니다.")
+        range_desc = (f"{since_dt.astimezone():%Y-%m-%d %H:%M} ~ {until_dt.astimezone():%Y-%m-%d %H:%M}"
+                      if until_dt is not None
+                      else f"{since_dt.astimezone():%Y-%m-%d %H:%M} 이후")
         report = (f"## 📭 새 메일 없음\n\n"
-                  f"{since_dt.astimezone():%Y-%m-%d %H:%M} 이후 공용 계정에 도착한 "
-                  f"새 메일이 없습니다.")
+                  f"{range_desc} 구간에 공용 계정에 도착한 새 메일이 없습니다.")
     else:
         log("Gemini 요약 생성 중...")
         prompt = build_prompt(collected)
@@ -444,9 +483,12 @@ def main() -> None:
 
     send_report(report, cfg, total)
 
-    # 성공적으로 발송한 경우에만 상태 갱신
-    state["last_run"] = now.isoformat()
-    save_state(state)
+    if args.date is not None:
+        log("[정보] --date 테스트 모드였으므로 state.json(마지막 실행 시각)은 갱신하지 않았습니다.")
+    else:
+        # 성공적으로 발송한 경우에만 상태 갱신
+        state["last_run"] = now.isoformat()
+        save_state(state)
     log("완료.")
 
 
