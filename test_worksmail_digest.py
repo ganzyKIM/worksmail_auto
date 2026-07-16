@@ -220,7 +220,8 @@ class TestLoadConfig:
             "sender:\n"
             "  email: info@x.com\n"
             "  password: pw\n"
-            "recipient: me@x.com\n"
+            "recipients:\n"
+            "  - me@x.com\n"
             "gemini:\n"
             "  api_key: KEY\n",
             encoding="utf-8",
@@ -231,7 +232,67 @@ class TestLoadConfig:
         assert cfg["imap"]["port"] == 993
         assert cfg["smtp"]["host"] == "smtp.worksmobile.com"
         assert cfg["lookback_hours"] == 24
-        assert cfg["gemini"]["model"] == "gemini-2.5-flash"
+        assert cfg["gemini"]["model"] == "gemini-flash-latest"
+        assert cfg["recipients"] == ["me@x.com"]
+
+    def test_recipients_as_single_string_is_normalized_to_list(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text(
+            "accounts:\n"
+            "  - name: info\n"
+            "    email: info@x.com\n"
+            "    password: pw\n"
+            "sender:\n"
+            "  email: info@x.com\n"
+            "  password: pw\n"
+            "recipients: me@x.com\n"
+            "gemini:\n"
+            "  api_key: KEY\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        cfg = w.load_config()
+        assert cfg["recipients"] == ["me@x.com"]
+
+    def test_multiple_recipients_are_kept_as_list(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text(
+            "accounts:\n"
+            "  - name: info\n"
+            "    email: info@x.com\n"
+            "    password: pw\n"
+            "sender:\n"
+            "  email: info@x.com\n"
+            "  password: pw\n"
+            "recipients:\n"
+            "  - a@x.com\n"
+            "  - b@x.com\n"
+            "gemini:\n"
+            "  api_key: KEY\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        cfg = w.load_config()
+        assert cfg["recipients"] == ["a@x.com", "b@x.com"]
+
+    def test_empty_recipients_list_exits(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text(
+            "accounts:\n"
+            "  - name: info\n"
+            "    email: info@x.com\n"
+            "    password: pw\n"
+            "sender:\n"
+            "  email: info@x.com\n"
+            "  password: pw\n"
+            "recipients: []\n"
+            "gemini:\n"
+            "  api_key: KEY\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        with pytest.raises(SystemExit):
+            w.load_config()
 
 
 class TestState:

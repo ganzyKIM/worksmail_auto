@@ -43,8 +43,9 @@ info·base 같은 **공용 업무 계정**의 받은 메일을 매일 자동으�
 2. **Create API key** 클릭 → 생성된 키 복사
 3. `config.yaml` 의 `gemini.api_key` 에 붙여넣기
 
-기본 모델은 `gemini-2.5-flash`(빠르고 저렴)입니다. 더 정교한 요약을 원하면
-`gemini-2.5-pro` 로 바꾸세요.
+기본 모델은 `gemini-flash-latest`(빠르고 저렴, 항상 최신 안정판을 자동으로 가리킴)입니다.
+더 정교한 요약을 원하면 `gemini-pro-latest` 로 바꾸세요. (`gemini-2.5-flash`처럼 버전을
+못박은 이름은 구글이 구버전을 내리면 어느 날 갑자기 404가 날 수 있어 권장하지 않습니다.)
 
 ---
 
@@ -75,10 +76,23 @@ notepad config.yaml
 
 - `accounts`: 수집할 공용계정들 (이름/이메일/비밀번호). 필요한 만큼 추가
 - `sender`: 요약 메일을 **보낼 때** 쓸 계정 (공용계정 중 하나여도 됨)
-- `recipient`: 요약을 **받을** 개인 메일 (이미 `kimdh@dobedub.com` 으로 채워져 있음)
+- `recipients`: 요약을 **받을** 사람들 목록
 - `gemini.api_key`: 제미나이 키
 
 > ⚠️ `config.yaml` 에는 비밀번호가 들어갑니다. 외부에 공유하거나 클라우드에 올리지 마세요.
+
+### 받는 사람 추가/제외하기
+
+`recipients` 아래에 이메일 주소를 한 줄씩 추가하거나 지우면 됩니다. 코드는 건드릴 필요 없습니다:
+
+```yaml
+recipients:
+  - "kimdh@dobedub.com"
+  - "new-person@dobedub.com"   # 추가하려면 이렇게 한 줄
+# - "leaving-person@dobedub.com"   # 빼려면 그 줄을 지우거나 # 으로 주석 처리
+```
+
+저장 후 다음 실행부터 바로 반영됩니다(재시작/재설치 불필요).
 
 ---
 
@@ -97,7 +111,7 @@ pytest -v
 ## 5. 동작 테스트
 
 ```powershell
-# (1) IMAP/SMTP 로그인이 되는지만 점검
+# (1) IMAP/SMTP 로그인 + Gemini API 키까지 한 번에 점검
 python worksmail_digest.py --test
 
 # (2) 실제 메일을 모아 요약해보되, 발송은 안 하고 화면에만 출력

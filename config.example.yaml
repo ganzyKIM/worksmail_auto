@@ -30,13 +30,18 @@ sender:
   password: "여기에_비밀번호_또는_앱비밀번호"
   display_name: "공용메일 일일요약"
 
-# 요약 리포트를 받을 개인 계정
-recipient: "kimdh@dobedub.com"
+# 요약 리포트를 받을 개인 계정 목록
+# 사람을 추가/제외하려면 아래 줄만 추가하거나 지우면 됩니다(코드 수정 불필요).
+recipients:
+  - "kimdh@dobedub.com"
+  # - "another-person@dobedub.com"
 
 # 제미나이(Gemini) API 설정
 gemini:
   api_key: "여기에_제미나이_API_키"
-  model: "gemini-2.5-flash"   # 빠르고 저렴. 더 정교하게: gemini-2.5-pro
+  model: "gemini-flash-latest"   # 빠르고 저렴. 더 정교하게: gemini-pro-latest
+  # ※ gemini-2.5-flash 처럼 버전을 못박은 이름은 구글이 구모델을 내리면 404가
+  #    날 수 있어, 항상 최신 안정판을 가리키는 -latest 별칭을 기본값으로 씁니다.
 
 # 처음 실행 시(또는 --since-hours 미지정 시) 몇 시간 전까지의 메일을 볼지
 lookback_hours: 24

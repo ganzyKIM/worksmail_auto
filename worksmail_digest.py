@@ -41,6 +41,12 @@ from email.mime.text import MIMEText
 from email.utils import formataddr, formatdate, parsedate_to_datetime
 from pathlib import Path
 
+# Windows 콘솔의 기본 코드페이지(cp949 등)는 이모지/일부 한글 조합을 인코딩하지
+# 못해 print()가 죽는 경우가 있다. 표준출력/표준에러를 UTF-8로 강제 전환한다.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 import requests
 import yaml
 
@@ -171,13 +177,19 @@ def load_config() -> dict:
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    # recipients: 문자열 하나만 적어도, 목록으로 적어도 모두 허용
+    recipients = cfg.get("recipients")
+    if isinstance(recipients, str):
+        recipients = [recipients]
+    recipients = [r for r in (recipients or []) if r]
+
     problems = []
     if not cfg.get("accounts"):
         problems.append("accounts(수집할 공용 계정 목록)가 비어 있습니다.")
     if not (cfg.get("sender") or {}).get("email"):
         problems.append("sender.email(발송 계정)이 없습니다.")
-    if not cfg.get("recipient"):
-        problems.append("recipient(요약을 받을 개인 메일)가 없습니다.")
+    if not recipients:
+        problems.append("recipients(요약을 받을 개인 메일 목록)가 비어 있습니다.")
     if not (cfg.get("gemini") or {}).get("api_key"):
         problems.append("gemini.api_key(제미나이 API 키)가 없습니다.")
     if problems:
@@ -186,13 +198,14 @@ def load_config() -> dict:
             log("      - " + p)
         sys.exit(1)
 
+    cfg["recipients"] = recipients
     cfg.setdefault("imap", {}).setdefault("host", "imap.worksmobile.com")
     cfg["imap"].setdefault("port", 993)
     cfg.setdefault("smtp", {}).setdefault("host", "smtp.worksmobile.com")
     cfg["smtp"].setdefault("port", 587)
     cfg.setdefault("lookback_hours", 24)
     cfg.setdefault("body_char_limit", 2000)
-    cfg["gemini"].setdefault("model", "gemini-2.5-flash")
+    cfg["gemini"].setdefault("model", "gemini-flash-latest")
     return cfg
 
 
@@ -329,14 +342,14 @@ def summarize_with_gemini(prompt: str, cfg: dict) -> str:
 # --------------------------------------------------------------------------- #
 def send_report(markdown_text: str, cfg: dict, total: int) -> None:
     sender = cfg["sender"]
-    recipient = cfg["recipient"]
+    recipients = cfg["recipients"]
     subject = f"[공용메일 일일요약] {dt.date.today():%Y-%m-%d} (신규 {total}건)"
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = formataddr((sender.get("display_name", "공용메일 일일요약"),
                               sender["email"]))
-    msg["To"] = recipient
+    msg["To"] = ", ".join(recipients)
     msg["Date"] = formatdate(localtime=True)
 
     msg.attach(MIMEText(markdown_text, "plain", "utf-8"))
@@ -354,8 +367,8 @@ th{{background:#f4f4f4}} h2{{margin-top:22px}}
     with smtplib.SMTP(cfg["smtp"]["host"], int(cfg["smtp"]["port"]), timeout=60) as s:
         s.starttls(context=ctx)
         s.login(sender["email"], sender["password"])
-        s.sendmail(sender["email"], [recipient], msg.as_string())
-    log(f"발송 완료 → {recipient}")
+        s.sendmail(sender["email"], recipients, msg.as_string())
+    log(f"발송 완료 → {', '.join(recipients)}")
 
 
 # --------------------------------------------------------------------------- #
@@ -383,6 +396,13 @@ def run_test(cfg: dict) -> None:
     except Exception as e:
         ok = False
         log(f"  SMTP 로그인 실패: {cfg['sender']['email']} -> {e}")
+    try:
+        reply = summarize_with_gemini("이 메시지에는 '정상' 이라는 단어 하나로만 답하세요.", cfg)
+        log(f"  Gemini API OK (모델: {cfg['gemini']['model']}) 응답: {reply[:30]}")
+    except Exception as e:
+        ok = False
+        log(f"  Gemini API 실패: {e}")
+    log(f"  수신자: {', '.join(cfg['recipients'])}")
     log("=== 점검 완료: " + ("모두 정상 ✅" if ok else "실패 항목 있음 ❌") + " ===")
     sys.exit(0 if ok else 1)
 
