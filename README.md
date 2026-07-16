@@ -82,6 +82,18 @@ notepad config.yaml
 
 ---
 
+## 4-1. (개발자용) 자동 테스트
+
+핵심 로직(제목 디코딩, 본문 추출, 날짜 처리, 프롬프트 생성, 설정 검증 등)은
+실제 메일 서버 없이도 pytest로 검증됩니다. 코드를 수정했다면 실행해보세요:
+
+```powershell
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+---
+
 ## 5. 동작 테스트
 
 ```powershell
