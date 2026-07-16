@@ -2,46 +2,102 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>WorksMail 관리자 UI</title>
+<title>WORKSMAIL.EXE</title>
 <style>
-  body { font-family: 'Malgun Gothic', sans-serif; background:#f4f5f7; display:flex;
-         align-items:center; justify-content:center; height:100vh; margin:0; }
-  .box { background:#fff; padding:32px 40px; border-radius:8px;
-         box-shadow:0 2px 12px rgba(0,0,0,.08); width:320px; }
-  h1 { font-size:18px; margin:0 0 4px; }
-  p.sub { color:#666; font-size:13px; margin:0 0 20px; }
-  input[type=password] { width:100%; padding:10px; margin:6px 0; border:1px solid #ccc;
-                          border-radius:4px; box-sizing:border-box; font-size:14px; }
-  button { width:100%; padding:10px; margin-top:10px; background:#2d6cdf; color:#fff;
-           border:none; border-radius:4px; cursor:pointer; font-size:14px; }
-  button:hover { background:#1f56b8; }
-  .flash { padding:8px 10px; border-radius:4px; font-size:13px; margin-bottom:10px; }
-  .flash.error { background:#fdecea; color:#b3261e; }
-  .flash.ok { background:#e8f5e9; color:#256029; }
+@font-face{
+  font-family:'Galmuri11';
+  src:url('{{ url_for('static', filename='fonts/Galmuri11.woff2') }}') format('woff2');
+  font-display:swap;
+}
+:root{
+  --pink-0:#fff0fa; --pink-1:#ffd9f2; --pink-2:#ffbfe9; --pink-3:#ff9ede;
+  --magenta:#ff44c8; --magenta-d:#d619a6;
+  --lav-1:#e9d6ff; --lav-2:#cda9ff; --mint:#b6f5e4;
+  --ink:#5a2a55; --ink-soft:#9b5e90;
+  --bevel-lt:#ffffff; --bevel-dk:#b25f9e; --bevel-dk2:#8a3f7a;
+  --face:#ffd0ef; --win-bg:#ffe6f7;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; font-family:'Galmuri11','MS Gothic','Apple SD Gothic Neo',monospace;
+  font-size:13px; color:var(--ink);
+  background:
+    radial-gradient(circle at 20% 15%, #ffc8ec 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, #d9c0ff 0, transparent 45%),
+    repeating-linear-gradient(45deg,#f9c9ec 0 14px,#f4c0e8 14px 28px);
+  background-attachment:fixed;
+  display:flex; align-items:center; justify-content:center;
+  padding:16px; -webkit-font-smoothing:none;
+}
+.window{
+  width:340px; max-width:100%;
+  background:var(--win-bg);
+  border:3px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:0 0 0 1px var(--magenta-d), 6px 6px 0 rgba(150,40,120,.35), 0 0 40px rgba(255,80,200,.5);
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:5px 8px;
+  background:linear-gradient(90deg,var(--magenta) 0%,var(--pink-3) 60%,var(--lav-2) 100%);
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); letter-spacing:.5px;
+}
+.title-text{font-size:13px;}
+.title-btns{display:flex; gap:3px;}
+.tbtn{width:20px;height:18px;line-height:1;font-size:11px;background:var(--face);color:var(--ink);
+  border:2px solid;border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);}
+.tbtn-x{background:#ff8fcf;}
+.body{padding:22px 24px;}
+h1{font-size:14px; margin:0 0 4px; color:var(--magenta-d);}
+p.sub{color:var(--ink-soft); font-size:11px; margin:0 0 18px; line-height:1.5;}
+input[type=password]{
+  width:100%; padding:9px 10px; margin:6px 0; font-family:inherit; font-size:12px;
+  color:var(--ink); background:#fff;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+}
+button{
+  width:100%; padding:10px; margin-top:10px; font-family:inherit; font-size:13px; font-weight:bold;
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); cursor:pointer;
+  background:linear-gradient(var(--magenta),var(--magenta-d));
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+}
+button:active{border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2); transform:translateY(1px);}
+.flash{padding:8px 10px; font-size:11px; margin-bottom:10px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.flash.error{background:#ffd9ec; color:var(--magenta-d);}
+.flash.ok{background:var(--mint); color:#1f7a64;}
+.emoji{font-size:26px; text-align:center; margin-bottom:6px;}
 </style>
 </head>
 <body>
-  <div class="box">
-    <h1>{{ '초기 설정' if mode == 'setup' else '관리자 로그인' }}</h1>
-    <p class="sub">
-      {% if mode == 'setup' %}
-        WorksMail 관리자 UI에서 사용할 비밀번호를 정하세요.
-      {% else %}
-        WorksMail 공용메일 요약 관리자 UI
-      {% endif %}
-    </p>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, msg in messages %}
-        <div class="flash {{ category }}">{{ msg }}</div>
-      {% endfor %}
-    {% endwith %}
-    <form method="post">
-      <input type="password" name="password" placeholder="비밀번호" required autofocus>
-      {% if mode == 'setup' %}
-      <input type="password" name="password2" placeholder="비밀번호 확인" required>
-      {% endif %}
-      <button type="submit">{{ '설정하고 시작' if mode == 'setup' else '로그인' }}</button>
-    </form>
+  <div class="window">
+    <div class="titlebar">
+      <span class="title-text">★ WORKSMAIL.EXE ★</span>
+      <div class="title-btns"><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn tbtn-x">×</span></div>
+    </div>
+    <div class="body">
+      <div class="emoji">📬</div>
+      <h1>{{ '초기 설정' if mode == 'setup' else '관리자 로그인' }}</h1>
+      <p class="sub">
+        {% if mode == 'setup' %}
+          처음 오셨네요! 이 화면에서 쓸 비밀번호를 정해주세요.
+        {% else %}
+          공용메일 요약봇 관리자 화면입니다.
+        {% endif %}
+      </p>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+      <form method="post">
+        <input type="password" name="password" placeholder="비밀번호" required autofocus>
+        {% if mode == 'setup' %}
+        <input type="password" name="password2" placeholder="비밀번호 확인" required>
+        {% endif %}
+        <button type="submit">{{ '설정하고 시작 ♥' if mode == 'setup' else '입장하기 ♥' }}</button>
+      </form>
+    </div>
   </div>
 </body>
 </html>

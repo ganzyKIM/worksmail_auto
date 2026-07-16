@@ -2,216 +2,318 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>WorksMail 관리자 UI</title>
+<title>WORKSMAIL.EXE</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', sans-serif; background:#f4f5f7; margin:0;
-         color:#222; }
-  header { background:#1f2a44; color:#fff; padding:14px 24px; display:flex;
-           justify-content:space-between; align-items:center; }
-  header h1 { font-size:16px; margin:0; }
-  header a { color:#c9d4ee; text-decoration:none; font-size:13px; }
-  header a:hover { color:#fff; }
-  main { max-width:900px; margin:24px auto; padding:0 16px 48px; }
-  .card { background:#fff; border-radius:8px; padding:20px 24px; margin-bottom:18px;
-          box-shadow:0 1px 4px rgba(0,0,0,.06); }
-  .card h2 { font-size:15px; margin:0 0 14px; border-bottom:1px solid #eee;
-             padding-bottom:8px; }
-  .card p.desc { color:#777; font-size:12px; margin:-8px 0 14px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px; }
-  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid #eee; }
-  th { color:#888; font-weight:600; font-size:12px; }
-  .row-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  input[type=text], input[type=email], input[type=password], input[type=number],
-  input[type=time], select {
-    padding:7px 9px; border:1px solid #ccc; border-radius:4px; font-size:13px;
-  }
-  button, .btn { padding:7px 14px; background:#2d6cdf; color:#fff; border:none;
-                 border-radius:4px; cursor:pointer; font-size:13px; }
-  button:hover, .btn:hover { background:#1f56b8; }
-  button.danger { background:#c0392b; }
-  button.danger:hover { background:#992d22; }
-  button.ghost { background:#eef1f6; color:#333; }
-  button.ghost:hover { background:#dfe4ee; }
-  .inline-form { display:inline; }
-  .flash { padding:10px 14px; border-radius:4px; font-size:13px; margin-bottom:12px; }
-  .flash.error { background:#fdecea; color:#b3261e; }
-  .flash.ok { background:#e8f5e9; color:#256029; }
-  .flash.warn { background:#fff8e1; color:#8a6100; }
-  .problems { background:#fff8e1; border:1px solid #f1d38a; color:#8a6100;
-              border-radius:6px; padding:12px 16px; font-size:13px; margin-bottom:18px; }
-  .problems ul { margin:6px 0 0; padding-left:18px; }
-  .muted { color:#999; font-size:12px; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px;
-           background:#eef1f6; color:#555; }
-  pre.log { background:#101418; color:#c9d1d9; padding:12px; border-radius:6px;
-            font-size:12px; max-height:260px; overflow:auto; white-space:pre-wrap; }
-  .next-due { font-size:13px; color:#2d6cdf; font-weight:600; }
+@font-face{
+  font-family:'Galmuri11';
+  src:url('{{ url_for('static', filename='fonts/Galmuri11.woff2') }}') format('woff2');
+  font-display:swap;
+}
+:root{
+  --pink-0:#fff0fa; --pink-1:#ffd9f2; --pink-2:#ffbfe9; --pink-3:#ff9ede;
+  --magenta:#ff44c8; --magenta-d:#d619a6;
+  --lav-1:#e9d6ff; --lav-2:#cda9ff; --mint:#b6f5e4;
+  --ink:#5a2a55; --ink-soft:#9b5e90;
+  --bevel-lt:#ffffff; --bevel-dk:#b25f9e; --bevel-dk2:#8a3f7a;
+  --face:#ffd0ef; --win-bg:#ffe6f7;
+}
+*{box-sizing:border-box;}
+html{min-height:100%;}
+body{
+  margin:0; min-height:100vh; font-family:'Galmuri11','MS Gothic','Apple SD Gothic Neo',monospace;
+  font-size:13px; color:var(--ink);
+  background:
+    radial-gradient(circle at 20% 15%, #ffc8ec 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, #d9c0ff 0, transparent 45%),
+    repeating-linear-gradient(45deg,#f9c9ec 0 14px,#f4c0e8 14px 28px);
+  background-attachment:fixed;
+  display:flex; justify-content:center;
+  padding:20px 16px 60px; -webkit-font-smoothing:none;
+}
+
+.raised{ border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:inset -1px -1px 0 var(--bevel-dk), inset 1px 1px 0 #ffe9fa; }
+.sunken{ border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  box-shadow:inset 1px 1px 0 var(--bevel-dk); }
+
+.desktop{width:100%; max-width:820px;}
+.window{
+  background:var(--win-bg);
+  border:3px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:0 0 0 1px var(--magenta-d), 6px 6px 0 rgba(150,40,120,.35), 0 0 40px rgba(255,80,200,.5);
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:5px 8px;
+  background:linear-gradient(90deg,var(--magenta) 0%,var(--pink-3) 60%,var(--lav-2) 100%);
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); letter-spacing:.5px;
+}
+.title-text{font-size:13px;}
+.title-btns{display:flex; gap:3px;}
+.tbtn{width:20px;height:18px;line-height:1;font-size:11px;background:var(--face);color:var(--ink);
+  border:2px solid;border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);}
+.tbtn-x{background:#ff8fcf;}
+
+.menubar{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:5px 8px; background:var(--pink-1); border-bottom:2px solid var(--bevel-dk);
+}
+.menu-spacer{flex:1;}
+.menu-info{font-size:11px; color:var(--ink-soft);}
+.menu-link{
+  font-size:11px; color:var(--ink); cursor:pointer; text-decoration:none;
+  padding:3px 9px; background:var(--face);
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+}
+.menu-link:hover{background:linear-gradient(var(--pink-2),var(--pink-3));}
+
+.body{padding:14px;}
+
+.panel{
+  background:var(--pink-0);
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  padding:10px; margin-bottom:14px;
+}
+.panel-title{
+  background:linear-gradient(90deg,var(--magenta),var(--pink-3));
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d);
+  padding:4px 10px; margin:-10px -10px 10px; font-size:12px; font-weight:bold;
+  display:flex; align-items:center; gap:6px;
+}
+.panel-desc{color:var(--ink-soft); font-size:11px; margin:-4px 0 10px;}
+
+table{width:100%; border-collapse:collapse; font-size:12px; margin-bottom:10px;}
+th{text-align:left; color:var(--magenta-d); font-size:10px; padding:4px 6px; border-bottom:2px solid var(--pink-3);}
+td{padding:6px; border-bottom:1px dashed var(--pink-2); vertical-align:middle;}
+.muted{color:var(--ink-soft); font-size:11px;}
+.badge{display:inline-block; font-size:9px; padding:2px 6px; margin-left:4px;
+  background:var(--mint); color:#1f7a64; border:1px solid #3aa78f;}
+
+.row-form{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+.inline-form{display:inline;}
+
+input[type=text], input[type=email], input[type=password], input[type=number],
+input[type=time], select{
+  font-family:inherit; font-size:12px; color:var(--ink); background:#fff;
+  padding:6px 8px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+}
+
+button, .btn{
+  font-family:inherit; font-size:12px; color:var(--ink); cursor:pointer;
+  padding:6px 12px; background:linear-gradient(var(--pink-1),var(--pink-2));
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+}
+button:hover, .btn:hover{background:linear-gradient(var(--pink-2),var(--pink-3));}
+button:active, .btn:active{border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2); transform:translateY(1px);}
+button.primary{
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); font-weight:bold;
+  background:linear-gradient(var(--magenta),var(--magenta-d));
+}
+button.primary:hover{background:linear-gradient(var(--magenta-d),var(--magenta));}
+button.danger{background:linear-gradient(#ff9ede,#ff5aa8); color:#fff; text-shadow:1px 1px 0 var(--magenta-d);}
+button.danger:hover{background:linear-gradient(#ff5aa8,var(--magenta-d));}
+
+.flash{padding:8px 12px; font-size:12px; margin-bottom:12px; line-height:1.5;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.flash.error{background:#ffd9ec; color:var(--magenta-d);}
+.flash.ok{background:var(--mint); color:#1f7a64;}
+.flash.warn{background:var(--lav-1); color:#5a2a90;}
+
+.problems{background:var(--lav-1); color:#5a2a90; font-size:12px; padding:10px 14px; margin-bottom:14px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.problems ul{margin:6px 0 0; padding-left:18px;}
+
+.next-due{font-size:12px; color:var(--magenta-d); font-weight:bold; margin-top:8px;
+  background:var(--mint); display:inline-block; padding:4px 10px; border:1px solid #3aa78f; color:#1f7a64;}
+
+.console{
+  margin:0; padding:8px; height:220px; overflow:auto;
+  background:#2a0a28; color:#ff9be8; font-family:'Galmuri11',monospace; font-size:11px; line-height:1.5;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  white-space:pre-wrap; word-break:break-all; text-shadow:0 0 4px rgba(255,100,210,.5);
+}
+.console::-webkit-scrollbar{width:12px;}
+.console::-webkit-scrollbar-thumb{background:var(--magenta); border:2px solid #2a0a28;}
+
+@media(max-width:640px){
+  .row-form{flex-direction:column; align-items:stretch;}
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>📬 WorksMail 관리자 UI</h1>
-  <div><a href="#admin-password">비밀번호 변경</a> &nbsp;|&nbsp; <a href="{{ url_for('logout') }}">로그아웃</a></div>
-</header>
-<main>
+<div class="desktop">
+  <div class="window">
+    <div class="titlebar">
+      <span class="title-text">★ WORKSMAIL.EXE — 공용메일 요약봇 관리자 ★</span>
+      <div class="title-btns"><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn tbtn-x">×</span></div>
+    </div>
+    <div class="menubar">
+      <span class="menu-info">📬 로그인됨</span>
+      <div class="menu-spacer"></div>
+      <a class="menu-link" href="#admin-password">🔒 비밀번호 변경</a>
+      <a class="menu-link" href="{{ url_for('logout') }}">🚪 로그아웃</a>
+    </div>
 
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, msg in messages %}
-      <div class="flash {{ category }}">{{ msg }}</div>
-    {% endfor %}
-  {% endwith %}
+    <div class="body">
 
-  {% if problems %}
-  <div class="problems">
-    <strong>⚠️ 아직 실행할 수 없는 상태입니다 — 아래 항목을 채워주세요:</strong>
-    <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
-  </div>
-  {% endif %}
-
-  <!-- 모니터링 계정 -->
-  <div class="card">
-    <h2>📥 모니터링할 메일주소 목록</h2>
-    <p class="desc">여기 등록된 공용 계정들의 받은편지함을 매번 IMAP으로 수집합니다.</p>
-    <table>
-      <tr><th>이름</th><th>이메일</th><th>비밀번호 변경</th><th></th></tr>
-      {% for a in cfg.accounts %}
-      <tr>
-        <td>{{ a.name }}{% if cfg.sender.email == a.email %} <span class="badge">발송계정</span>{% endif %}</td>
-        <td>{{ a.email }}</td>
-        <td>
-          <form class="row-form inline-form" method="post" action="{{ url_for('accounts_password') }}">
-            <input type="hidden" name="email" value="{{ a.email }}">
-            <input type="password" name="password" placeholder="새 비밀번호" size="14">
-            <button type="submit" class="ghost">변경</button>
-          </form>
-        </td>
-        <td>
-          <form class="inline-form" method="post" action="{{ url_for('accounts_delete') }}"
-                onsubmit="return confirm('{{ a.email }} 계정을 삭제할까요?');">
-            <input type="hidden" name="email" value="{{ a.email }}">
-            <button type="submit" class="danger">삭제</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="4" class="muted">등록된 계정이 없습니다.</td></tr>
-      {% endfor %}
-    </table>
-    <form class="row-form" method="post" action="{{ url_for('accounts_add') }}">
-      <input type="text" name="name" placeholder="이름 (예: info)" size="12">
-      <input type="email" name="email" placeholder="이메일" required size="20">
-      <input type="password" name="password" placeholder="비밀번호(또는 외부앱 비밀번호)" required size="20">
-      <button type="submit">계정 추가</button>
-    </form>
-  </div>
-
-  <!-- 수신자 -->
-  <div class="card">
-    <h2>📤 요약 메일을 받을 수신자</h2>
-    <p class="desc">여기 등록된 주소로 요약 리포트가 발송됩니다.</p>
-    <table>
-      <tr><th>이메일</th><th></th></tr>
-      {% for r in cfg.recipients %}
-      <tr>
-        <td>{{ r }}</td>
-        <td>
-          <form class="inline-form" method="post" action="{{ url_for('recipients_delete') }}"
-                onsubmit="return confirm('{{ r }} 수신자를 삭제할까요?');">
-            <input type="hidden" name="email" value="{{ r }}">
-            <button type="submit" class="danger">삭제</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="2" class="muted">등록된 수신자가 없습니다.</td></tr>
-      {% endfor %}
-    </table>
-    <form class="row-form" method="post" action="{{ url_for('recipients_add') }}">
-      <input type="email" name="email" placeholder="추가할 이메일" required size="24">
-      <button type="submit">수신자 추가</button>
-    </form>
-  </div>
-
-  <!-- 발송 계정 -->
-  <div class="card">
-    <h2>✉️ 발송 계정</h2>
-    <p class="desc">요약 메일을 실제로 보낼 때 사용할 계정 (위 모니터링 계정 중 선택).</p>
-    <form class="row-form" method="post" action="{{ url_for('sender_save') }}">
-      <select name="email">
-        {% for a in cfg.accounts %}
-        <option value="{{ a.email }}" {% if cfg.sender.email == a.email %}selected{% endif %}>{{ a.email }}</option>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
         {% endfor %}
-      </select>
-      <input type="text" name="display_name" placeholder="보내는 이름"
-             value="{{ cfg.sender.display_name or '공용메일 요약' }}" size="18">
-      <button type="submit">저장</button>
-    </form>
-  </div>
+      {% endwith %}
 
-  <!-- 스케줄 -->
-  <div class="card">
-    <h2>⏱ 취합 단위 &amp; 발송 시각</h2>
-    <p class="desc">
-      "발송 시각"을 기준으로 "취합 간격"마다 반복해서 발송합니다.
-      예) 발송 시각 08:00 + 간격 12시간 → 매일 08:00, 20:00 두 번 발송.
-      간격을 24시간으로 두면 하루에 한 번만 발송됩니다.
-    </p>
-    <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
-      <label>취합 간격:
-        <select name="interval_hours">
-          {% for h in [1,2,3,4,6,8,12,24] %}
-          <option value="{{ h }}" {% if cfg.schedule.interval_hours|float == h %}selected{% endif %}>{{ h }}시간마다</option>
+      {% if problems %}
+      <div class="problems">
+        <strong>⚠ 아직 실행할 수 없어요 — 아래를 채워주세요</strong>
+        <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <!-- 모니터링 계정 -->
+      <div class="panel">
+        <div class="panel-title">📥 모니터링할 메일주소 목록</div>
+        <p class="panel-desc">여기 등록된 공용 계정들의 받은편지함을 IMAP으로 수집해요.</p>
+        <table>
+          <tr><th>이름</th><th>이메일</th><th>비밀번호 변경</th><th></th></tr>
+          {% for a in cfg.accounts %}
+          <tr>
+            <td>{{ a.name }}{% if cfg.sender.email == a.email %}<span class="badge">발송계정</span>{% endif %}</td>
+            <td>{{ a.email }}</td>
+            <td>
+              <form class="row-form inline-form" method="post" action="{{ url_for('accounts_password') }}">
+                <input type="hidden" name="email" value="{{ a.email }}">
+                <input type="password" name="password" placeholder="새 비밀번호" size="12">
+                <button type="submit">변경</button>
+              </form>
+            </td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('accounts_delete') }}"
+                    onsubmit="return confirm('{{ a.email }} 계정을 삭제할까요?');">
+                <input type="hidden" name="email" value="{{ a.email }}">
+                <button type="submit" class="danger">삭제</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted">아직 등록된 계정이 없어요.</td></tr>
           {% endfor %}
-        </select>
-      </label>
-      <label>발송(기준) 시각:
-        <input type="time" name="anchor_time" value="{{ cfg.schedule.anchor_time }}">
-      </label>
-      <button type="submit">저장</button>
-    </form>
-    {% if next_due_preview %}
-    <p class="next-due">다음 예정 발송: {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }} (이 PC 로컬 시각 기준)</p>
-    {% endif %}
-  </div>
+        </table>
+        <form class="row-form" method="post" action="{{ url_for('accounts_add') }}">
+          <input type="text" name="name" placeholder="이름 (예: info)" size="10">
+          <input type="email" name="email" placeholder="이메일" required size="18">
+          <input type="password" name="password" placeholder="비밀번호(또는 외부앱 비밀번호)" required size="18">
+          <button type="submit" class="primary">＋ 계정 추가</button>
+        </form>
+      </div>
 
-  <!-- Gemini -->
-  <div class="card">
-    <h2>🤖 Gemini API</h2>
-    <p class="desc">비워두고 저장하면 기존 API 키가 유지됩니다.</p>
-    <form class="row-form" method="post" action="{{ url_for('gemini_save') }}">
-      <input type="password" name="api_key" placeholder="{{ '저장된 키 있음 (변경하려면 입력)' if cfg.gemini.api_key else 'API 키 입력' }}" size="30">
-      <input type="text" name="model" value="{{ cfg.gemini.model }}" size="20">
-      <button type="submit">저장</button>
-    </form>
-  </div>
+      <!-- 수신자 -->
+      <div class="panel">
+        <div class="panel-title">📤 요약 메일을 받을 사람</div>
+        <p class="panel-desc">여기 등록된 주소로 요약 리포트가 발송돼요.</p>
+        <table>
+          <tr><th>이메일</th><th></th></tr>
+          {% for r in cfg.recipients %}
+          <tr>
+            <td>{{ r }}</td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('recipients_delete') }}"
+                    onsubmit="return confirm('{{ r }} 수신자를 삭제할까요?');">
+                <input type="hidden" name="email" value="{{ r }}">
+                <button type="submit" class="danger">삭제</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="2" class="muted">아직 등록된 수신자가 없어요.</td></tr>
+          {% endfor %}
+        </table>
+        <form class="row-form" method="post" action="{{ url_for('recipients_add') }}">
+          <input type="email" name="email" placeholder="추가할 이메일" required size="22">
+          <button type="submit" class="primary">＋ 수신자 추가</button>
+        </form>
+      </div>
 
-  <!-- 연결 테스트 -->
-  <div class="card">
-    <h2>🔌 연결 테스트</h2>
-    <p class="desc">저장된 설정으로 IMAP/SMTP/Gemini에 실제로 접속해봅니다.</p>
-    <form method="post" action="{{ url_for('test_connection') }}">
-      <button type="submit">지금 테스트</button>
-    </form>
-  </div>
+      <!-- 발송 계정 -->
+      <div class="panel">
+        <div class="panel-title">✉ 발송 계정</div>
+        <p class="panel-desc">요약 메일을 실제로 보낼 때 쓸 계정이에요 (위 목록 중 선택).</p>
+        <form class="row-form" method="post" action="{{ url_for('sender_save') }}">
+          <select name="email">
+            {% for a in cfg.accounts %}
+            <option value="{{ a.email }}" {% if cfg.sender.email == a.email %}selected{% endif %}>{{ a.email }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="display_name" placeholder="보내는 이름"
+                 value="{{ cfg.sender.display_name or '공용메일 요약' }}" size="16">
+          <button type="submit">저장</button>
+        </form>
+      </div>
 
-  <!-- 최근 로그 -->
-  <div class="card">
-    <h2>📜 최근 로그</h2>
-    <pre class="log">{% for line in log_tail %}{{ line }}
-{% else %}(아직 로그가 없습니다){% endfor %}</pre>
-  </div>
+      <!-- 스케줄 -->
+      <div class="panel">
+        <div class="panel-title">⏱ 취합 단위 &amp; 발송 시각</div>
+        <p class="panel-desc">
+          "발송 시각"부터 "취합 간격"마다 반복해서 보내요. 예: 08:00 기준 + 12시간 간격
+          → 매일 08:00·20:00 두 번. 24시간이면 하루 한 번.
+        </p>
+        <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
+          <label>취합 간격
+            <select name="interval_hours">
+              {% for h in [1,2,3,4,6,8,12,24] %}
+              <option value="{{ h }}" {% if cfg.schedule.interval_hours|float == h %}selected{% endif %}>{{ h }}시간마다</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>발송(기준) 시각
+            <input type="time" name="anchor_time" value="{{ cfg.schedule.anchor_time }}">
+          </label>
+          <button type="submit" class="primary">저장</button>
+        </form>
+        {% if next_due_preview %}
+        <div class="next-due">🕐 다음 예정 발송: {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }}</div>
+        {% endif %}
+      </div>
 
-  <!-- 관리자 비밀번호 변경 -->
-  <div class="card" id="admin-password">
-    <h2>🔒 관리자 UI 비밀번호 변경</h2>
-    <form class="row-form" method="post" action="{{ url_for('admin_password_save') }}">
-      <input type="password" name="password" placeholder="새 비밀번호" required>
-      <input type="password" name="password2" placeholder="새 비밀번호 확인" required>
-      <button type="submit">변경</button>
-    </form>
-  </div>
+      <!-- Gemini -->
+      <div class="panel">
+        <div class="panel-title">🤖 Gemini API</div>
+        <p class="panel-desc">비워두고 저장하면 기존 키가 그대로 유지돼요.</p>
+        <form class="row-form" method="post" action="{{ url_for('gemini_save') }}">
+          <input type="password" name="api_key" placeholder="{{ '저장된 키 있음 (변경하려면 입력)' if cfg.gemini.api_key else 'API 키 입력' }}" size="26">
+          <input type="text" name="model" value="{{ cfg.gemini.model }}" size="18">
+          <button type="submit">저장</button>
+        </form>
+      </div>
 
-</main>
+      <!-- 연결 테스트 -->
+      <div class="panel">
+        <div class="panel-title">🔌 연결 테스트</div>
+        <p class="panel-desc">저장된 설정으로 IMAP/SMTP/Gemini에 실제로 접속해봐요.</p>
+        <form method="post" action="{{ url_for('test_connection') }}">
+          <button type="submit" class="primary">지금 테스트 ♥</button>
+        </form>
+      </div>
+
+      <!-- 최근 로그 -->
+      <div class="panel">
+        <div class="panel-title">📜 최근 로그</div>
+        <pre class="console">{% for line in log_tail %}{{ line }}
+{% else %}(아직 로그가 없어요){% endfor %}</pre>
+      </div>
+
+      <!-- 관리자 비밀번호 변경 -->
+      <div class="panel" id="admin-password">
+        <div class="panel-title">🔒 관리자 비밀번호 변경</div>
+        <form class="row-form" method="post" action="{{ url_for('admin_password_save') }}">
+          <input type="password" name="password" placeholder="새 비밀번호" required>
+          <input type="password" name="password2" placeholder="새 비밀번호 확인" required>
+          <button type="submit">변경</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
 </body>
 </html>

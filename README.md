@@ -191,10 +191,14 @@ python worksmail_digest.py --watch-once --dry-run
 스크립트가 알아서 "지금이 보낼 때인지" 판단합니다. 그래서 나중에 관리자 UI에서
 발송 시각을 08:00 → 09:00 으로 바꿔도, 작업 스케줄러 등록을 다시 할 필요가 없습니다.
 
-**관리자 권한 PowerShell**에서 아래 한 줄을 실행하면 10분마다 점검하는 작업이 등록됩니다:
+**관리자 권한 PowerShell**에서 아래를 실행하면 10분마다 점검하는 작업이 등록됩니다.
+(경로를 변수에 먼저 담아 넘겨야 합니다 — `/TR "\"...\""` 처럼 따옴표를 직접
+이스케이프하면 PowerShell이 네이티브 명령에 인자를 전달하는 방식 때문에 따옴표가
+깨져서 `잘못된 인수/옵션` 오류가 납니다.)
 
 ```powershell
-schtasks /Create /SC MINUTE /MO 10 /TN "WorksMail Watch" /TR "\"C:\Users\kimdh\Desktop\worksmail\run_watch_once.bat\"" /RL LIMITED /F
+$taskPath = "C:\Users\kimdh\Desktop\worksmail\run_watch_once.bat"
+schtasks /Create /SC MINUTE /MO 10 /TN "WorksMail Watch" /TR $taskPath /RL LIMITED /F
 ```
 
 - 간격을 바꾸려면 `/MO 10`을 원하는 분으로 (너무 촘촘하지 않게 5~15분 권장)
