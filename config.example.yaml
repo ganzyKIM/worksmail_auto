@@ -47,3 +47,16 @@ gemini:
 lookback_hours: 24
 # 각 메일 본문을 요약에 넣을 때 최대 글자수 (길수록 요약 품질↑, 비용↑)
 body_char_limit: 2000
+
+# 취합 간격(interval_hours) & 발송(기준) 시각(anchor_time) — --watch-once 모드가 사용.
+# 예) anchor_time 08:00 + interval_hours 12 -> 매일 08:00, 20:00 두 번 발송.
+#     interval_hours 를 24로 두면 하루에 한 번만 발송.
+# 관리자 UI(admin_ui.py)에서 이 값을 편집할 수도 있습니다.
+schedule:
+  interval_hours: 24
+  anchor_time: "08:00"
+
+# 관리자 UI(admin_ui.py, http://127.0.0.1:5000) 로그인 비밀번호.
+# 비워두면 admin_ui.py 최초 접속 시 직접 설정하게 됩니다.
+admin_ui:
+  password: ""

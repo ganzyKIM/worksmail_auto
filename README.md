@@ -1,14 +1,17 @@
-# 네이버 웍스 공용계정 일일 메일 요약
+# 네이버 웍스 공용계정 메일 요약
 
-info·base 같은 **공용 업무 계정**의 받은 메일을 매일 자동으로 모아, 제미나이(Gemini)로
-요약·중요도 분류한 뒤 개인 계정(kimdh@dobedub.com)으로 보내주는 프로그램입니다.
+info·base 같은 **공용 업무 계정**의 받은 메일을 정해진 간격으로 자동으로 모아, 제미나이(Gemini)로
+요약·중요도 분류한 뒤 지정한 사람들에게 보내주는 프로그램입니다.
 
 ```
-매일 정해진 시각
+설정한 취합 간격마다 (기본: 매일 08:00 한 번)
   → IMAP으로 각 공용계정의 '새 메일' 수집 (읽음 표시는 안 건드림)
   → Gemini API로 계정별 요약 + 중요도/분류/필요조치 정리
-  → SMTP로 개인계정에 요약 메일 발송
+  → SMTP로 등록된 수신자들에게 요약 메일 발송
 ```
+
+모니터링 계정·수신자·취합 간격·발송 시각은 **브라우저 관리자 UI**(`admin_ui.py`)로
+편집합니다. `config.yaml`을 직접 손으로 고쳐도 되지만, UI 쪽이 실수가 적습니다.
 
 ---
 
@@ -67,7 +70,9 @@ pip install -r requirements.txt
 
 ## 4. 설정 파일 작성
 
-`config.example.yaml` 을 복사해서 `config.yaml` 을 만들고 값을 채웁니다:
+가장 먼저 `config.yaml`이 존재해야 관리자 UI든 CLI든 동작합니다. 최초 1회만 아래처럼
+빈 틀을 만들어두고, 나머지(계정/수신자/스케줄/API 키)는 **관리자 UI에서 채우는 것을
+권장**합니다 (5번 섹션 참고). UI 없이 직접 편집하고 싶다면 이 방법도 가능합니다:
 
 ```powershell
 Copy-Item config.example.yaml config.yaml
@@ -76,27 +81,53 @@ notepad config.yaml
 
 - `accounts`: 수집할 공용계정들 (이름/이메일/비밀번호). 필요한 만큼 추가
 - `sender`: 요약 메일을 **보낼 때** 쓸 계정 (공용계정 중 하나여도 됨)
-- `recipients`: 요약을 **받을** 사람들 목록
+- `recipients`: 요약을 **받을** 사람들 목록 — 줄만 추가/삭제하면 됩니다
 - `gemini.api_key`: 제미나이 키
+- `schedule.interval_hours` / `schedule.anchor_time`: 취합 간격과 발송(기준) 시각
 
 > ⚠️ `config.yaml` 에는 비밀번호가 들어갑니다. 외부에 공유하거나 클라우드에 올리지 마세요.
-
-### 받는 사람 추가/제외하기
-
-`recipients` 아래에 이메일 주소를 한 줄씩 추가하거나 지우면 됩니다. 코드는 건드릴 필요 없습니다:
-
-```yaml
-recipients:
-  - "kimdh@dobedub.com"
-  - "new-person@dobedub.com"   # 추가하려면 이렇게 한 줄
-# - "leaving-person@dobedub.com"   # 빼려면 그 줄을 지우거나 # 으로 주석 처리
-```
 
 저장 후 다음 실행부터 바로 반영됩니다(재시작/재설치 불필요).
 
 ---
 
-## 4-1. (개발자용) 자동 테스트
+## 4-1. 관리자 UI로 설정 관리하기
+
+계정·수신자·취합 간격·발송 시각을 매번 YAML 문법 신경 쓰며 손으로 고치는 대신,
+브라우저에서 편집할 수 있는 관리자 화면입니다.
+
+### 실행
+```powershell
+.\.venv\Scripts\Activate.ps1
+python admin_ui.py
+```
+(또는 `run_admin_ui.bat` 더블클릭). 콘솔에 뜨는 주소로 브라우저에서 접속:
+**http://127.0.0.1:5000**
+
+- 이 서버는 **이 PC(127.0.0.1)에서만** 접속 가능합니다. 네트워크의 다른 PC나
+  휴대폰에서는 열리지 않습니다.
+- 콘솔 창을 닫으면 서버도 함께 종료됩니다. 평소엔 꺼둬도 되고, 설정을 바꿀 때만 켜세요.
+
+### 최초 접속
+비밀번호가 아직 없으면 "초기 설정" 화면이 뜹니다. 원하는 비밀번호를 정하세요
+(이후 로그인에 사용, `config.yaml`의 `admin_ui.password`에 저장됩니다).
+
+### 화면 구성
+- **모니터링할 메일주소 목록**: info/base 같은 공용 계정 추가·삭제, 계정별 비밀번호 변경
+- **요약 메일을 받을 수신자**: 받는 사람 추가·삭제
+- **발송 계정**: 요약 메일을 실제로 보낼 때 쓸 계정 선택 (모니터링 계정 중 하나)
+- **취합 단위 & 발송 시각**: 몇 시간 간격으로, 몇 시를 기준으로 발송할지
+  (예: 12시간 간격 + 08:00 기준 → 매일 08:00·20:00 두 번 발송)
+- **Gemini API**: 키/모델 (비워두고 저장하면 기존 값 유지)
+- **연결 테스트**: 저장된 설정으로 IMAP/SMTP/Gemini에 실제 접속해보고 결과 표시
+- **최근 로그**: `worksmail.log` 마지막 부분을 바로 확인
+
+저장 버튼을 누르면 `config.yaml` 전체를 다시 씁니다 — **손으로 넣은 주석은 저장 후
+사라집니다.** (값 자체는 안전하게 보존됩니다.)
+
+---
+
+## 4-2. (개발자용) 자동 테스트
 
 핵심 로직(제목 디코딩, 본문 추출, 날짜 처리, 프롬프트 생성, 설정 검증 등)은
 실제 메일 서버 없이도 pytest로 검증됩니다. 코드를 수정했다면 실행해보세요:
@@ -142,27 +173,41 @@ python worksmail_digest.py --date 2026-07-15 --dry-run
 - `--since-hours` 와 `--date` 는 동시에 쓸 수 없습니다(둘 다 "어느 기간을 볼지"를
   정하는 옵션이라 하나만 선택).
 
----
-
-## 6. 매일 자동 실행 등록 (작업 스케줄러)
-
-가장 쉬운 방법 — **관리자 권한 PowerShell**에서 아래 한 줄을 실행하면
-매일 아침 **08:00**에 자동 실행되는 작업이 등록됩니다:
+### 스케줄(취합 간격/발송 시각)이 실제로 맞물려 도는지 미리 보기
 
 ```powershell
-schtasks /Create /SC DAILY /TN "WorksMail Digest" /TR "\"C:\Users\kimdh\Desktop\worksmail\run.bat\"" /ST 08:00 /RL LIMITED /F
+python worksmail_digest.py --watch-once --dry-run
+```
+지금이 발송할 때가 아니면 "아직 발송 시각이 아님"이라고만 로그를 남기고 조용히
+끝납니다. `config.yaml`의 `schedule.anchor_time`을 지금 시각 근처로 잠깐 바꿔두고
+실행해보면 실제로 발송되는지 확인할 수 있습니다.
+
+---
+
+## 6. 자동 실행 등록 (작업 스케줄러)
+
+**중요:** 이제 "몇 시에 보낼지"는 `config.yaml`의 `schedule`(또는 관리자 UI)이 결정합니다.
+작업 스케줄러는 그냥 **자주(예: 10분마다) `--watch-once`를 호출**하기만 하면 되고,
+스크립트가 알아서 "지금이 보낼 때인지" 판단합니다. 그래서 나중에 관리자 UI에서
+발송 시각을 08:00 → 09:00 으로 바꿔도, 작업 스케줄러 등록을 다시 할 필요가 없습니다.
+
+**관리자 권한 PowerShell**에서 아래 한 줄을 실행하면 10분마다 점검하는 작업이 등록됩니다:
+
+```powershell
+schtasks /Create /SC MINUTE /MO 10 /TN "WorksMail Watch" /TR "\"C:\Users\kimdh\Desktop\worksmail\run_watch_once.bat\"" /RL LIMITED /F
 ```
 
-- 시간 바꾸려면 `/ST 08:00` 을 원하는 시각으로 (예: `/ST 07:30`)
-- 등록 확인: `schtasks /Query /TN "WorksMail Digest"`
-- 지금 바로 한번 돌려보기: `schtasks /Run /TN "WorksMail Digest"`
-- 삭제: `schtasks /Delete /TN "WorksMail Digest" /F`
+- 간격을 바꾸려면 `/MO 10`을 원하는 분으로 (너무 촘촘하지 않게 5~15분 권장)
+- 등록 확인: `schtasks /Query /TN "WorksMail Watch"`
+- 지금 바로 한번 점검해보기: `schtasks /Run /TN "WorksMail Watch"` (발송 시각이 아니면 아무 일도 안 일어나는 게 정상)
+- 삭제: `schtasks /Delete /TN "WorksMail Watch" /F`
 
-> PC가 꺼져 있으면 그 시각엔 실행되지 않습니다. 상시 켜두거나, 켜진 직후
-> 놓친 작업을 실행하도록 아래 GUI 옵션을 켜세요.
+> PC가 꺼져 있던 동안 지나간 슬롯은 밀어서 몰아 보내지 않고, 켜진 뒤 돌아온
+> 첫 점검 때 바로 다음 슬롯 하나만 봅니다 (예: 매일 08:00 설정인데 PC를 사흘 껐다
+> 켜도, 사흘치를 한꺼번에 보내지 않고 다음 예정 시각 한 번만 발송).
 
 ### (선택) GUI로 더 세밀하게
-`Win + R` → `taskschd.msc` → 방금 만든 **WorksMail Digest** 더블클릭 →
+`Win + R` → `taskschd.msc` → 방금 만든 **WorksMail Watch** 더블클릭 →
 **조건/설정** 탭에서:
 - "예약된 시작 시간을 놓친 경우 가능한 한 빨리 작업 시작" 체크
 - (노트북이면) "컴퓨터의 전원이 배터리인 경우 작업 시작 안 함" 체크 해제
@@ -181,6 +226,8 @@ schtasks /Create /SC DAILY /TN "WorksMail Digest" /TR "\"C:\Users\kimdh\Desktop\
 | SMTP 발송 실패 | `sender` 계정 비밀번호, 포트 587 방화벽 |
 | Gemini 오류 | API 키 유효성, 모델명 오타, 회사 네트워크의 외부 접속 차단 |
 | 요약이 비었음 | 해당 시간대에 새 메일이 없었을 수 있음(`--since-hours` 로 확대) |
+| `--watch-once`를 계속 돌려도 안 보내짐 | `python worksmail_digest.py --test` 로 "다음 예정 발송 시각"이 언제인지 확인. 그 시각이 지나야 발송됨 |
+| 관리자 UI가 안 열림 | 콘솔 창이 닫혀있진 않은지, 다른 프로그램이 5000번 포트를 쓰고 있진 않은지 확인 |
 
 ---
 
@@ -189,3 +236,59 @@ schtasks /Create /SC DAILY /TN "WorksMail Digest" /TR "\"C:\Users\kimdh\Desktop\
 - `config.yaml`(비밀번호 포함)은 이 PC에만 두고 공유하지 마세요.
 - 여러 사람이 쓰는 PC라면 이 폴더 접근 권한을 본인 계정으로 제한하는 것이 좋습니다.
 - 앱 비밀번호는 언제든 네이버 웍스에서 폐기·재발급할 수 있습니다.
+- 관리자 UI는 `127.0.0.1`(이 PC)에서만 열립니다. 비밀번호는 별개로 걸려있지만,
+  이 PC 자체에 접근할 수 있는 사람은 누구나 열어볼 수 있다는 점을 기억하세요.
+
+---
+
+## 9. 다른 PC로 이전하기
+
+상시 켜두는 PC를 바꾸거나, 지금 PC에서 새 PC로 옮길 때의 절차입니다.
+
+### 9-1. 옮길 것 / 새로 만들 것
+
+| 항목 | 옮기나요? | 방법 |
+|------|-----------|------|
+| 코드 전체 (`.py`, `templates/`, `requirements*.txt`, `*.bat`, `README.md`) | ✅ 옮김 | git 저장소 통째로 복사 (아래 참고) |
+| `config.yaml` (계정 비밀번호, Gemini 키, 관리자 UI 비밀번호 포함) | ✅ 옮김 | **반드시 USB로만.** 메일·메신저·클라우드 동기화 폴더 금지 |
+| `state.json` (마지막 발송/다음 예정 시각) | 옮기면 좋음(선택) | 옮기면 스케줄이 끊기지 않고 이어짐. 안 옮겨도 새 PC에서 다음 틱에 자동으로 다시 초기화됨 |
+| `.venv`, `__pycache__`, `.pytest_cache` | ❌ 옮기지 않음 | 새 PC에서 새로 생성 (용량만 크고 이식 안 됨) |
+| `worksmail.log` | 옮길 필요 없음 | 참고용 기록일 뿐 |
+
+### 9-2. 이식용 압축 파일 만들기 (지금 PC에서)
+
+```powershell
+Compress-Archive -Path ".git",".gitignore","README.md","config.example.yaml","config.yaml","requirements.txt","requirements-dev.txt","run.bat","run_watch_once.bat","run_admin_ui.bat","templates","test_worksmail_digest.py","worksmail_digest.py","admin_ui.py","state.json" -DestinationPath "$env:USERPROFILE\Desktop\worksmail_transfer.zip" -Force
+```
+
+이 zip을 **USB로만** 옮기고, 옮긴 뒤에는 원래 PC에 남은 zip 사본을 삭제하세요
+(회사 메일 비밀번호·Gemini 키가 평문으로 들어있습니다).
+
+### 9-3. 새 PC에서 할 일
+
+1. **Python 설치 확인**: `python --version` (없으면 python.org에서 설치, "Add to PATH" 체크)
+2. **압축 풀기**: 원하는 위치(예: `C:\Users\<계정>\Desktop\worksmail`)에 압축 해제
+3. **가상환경 새로 생성**:
+   ```powershell
+   cd C:\Users\<계정>\Desktop\worksmail
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
+   ```
+4. **연결 확인**:
+   ```powershell
+   python worksmail_digest.py --test
+   ```
+   실패하면 새 PC의 네트워크/방화벽이 993·587 포트 아웃바운드를 막고 있는지 확인
+5. **관리자 UI로 설정 재확인** (선택): `python admin_ui.py` → http://127.0.0.1:5000 →
+   계정·수신자·스케줄이 제대로 옮겨왔는지 훑어보기
+6. **작업 스케줄러 등록** (6번 섹션의 `schtasks` 명령 그대로 실행)
+7. **다음날(또는 다음 예정 시각) 확인**: 수신자에게 요약 메일이 도착했는지,
+   `worksmail.log`에 오류가 없는지 확인
+
+### 9-4. 예전 PC 정리
+
+새 PC에서 정상 동작을 확인했다면, 예전 PC에서:
+- 등록해둔 작업 스케줄러 작업 삭제: `schtasks /Delete /TN "WorksMail Watch" /F`
+- `config.yaml` 삭제 또는 최소한 다른 사람이 접근 못 하는 곳으로 이동

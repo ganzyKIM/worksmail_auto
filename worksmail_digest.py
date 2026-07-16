@@ -13,16 +13,21 @@
   - 실행 로그는 worksmail.log 에 남습니다.
 
 사용 예:
-  python worksmail_digest.py            # 실제 실행(수집→요약→발송)
+  python worksmail_digest.py            # 실제 실행(수집→요약→발송, 즉시)
   python worksmail_digest.py --dry-run  # 발송하지 않고 화면에만 리포트 출력
   python worksmail_digest.py --since-hours 48   # 최근 48시간 강제 수집
   python worksmail_digest.py --date 2026-07-15  # 특정 날짜 메일만 요약해서 발송(테스트용)
   python worksmail_digest.py --date 2026-07-15 --dry-run  # 위와 동일 + 발송은 생략
-  python worksmail_digest.py --test     # IMAP/SMTP 로그인만 점검
+  python worksmail_digest.py --test     # IMAP/SMTP/Gemini 연결만 점검
+  python worksmail_digest.py --watch-once   # 스케줄(취합 간격+발송 시각)에 따라
+                                             # 지금이 발송할 때인지 확인하고, 맞으면
+                                             # 그때만 실제로 수집·요약·발송한다.
+                                             # 작업 스케줄러가 몇 분 간격으로 이 옵션을
+                                             # 반복 호출하는 방식으로 자동화한다
+                                             # (config.yaml의 schedule 설정을 따름).
 
 참고: --date 로 실행하면 state.json(마지막 실행 시각)을 갱신하지 않습니다.
-      다음 날 자동 실행되는 정규 배치가 --date 테스트로 인해 메일을 건너뛰지
-      않도록 하기 위함입니다.
+      다음 자동 실행이 --date 테스트로 인해 메일을 건너뛰지 않도록 하기 위함입니다.
 """
 
 import argparse
@@ -30,6 +35,7 @@ import datetime as dt
 import email
 import imaplib
 import json
+import math
 import re
 import smtplib
 import ssl
@@ -116,6 +122,37 @@ def parse_date_range(date_str: str):
     return to_utc(start_naive), to_utc(end_naive)
 
 
+def parse_anchor_time(anchor_time: str):
+    """'HH:MM' 문자열을 (hour, minute) 정수 튜플로. 형식이 잘못되면 ValueError."""
+    parts = str(anchor_time).strip().split(":")
+    if len(parts) != 2:
+        raise ValueError(f"'HH:MM' 형식이어야 합니다: {anchor_time!r}")
+    hh, mm = int(parts[0]), int(parts[1])
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        raise ValueError(f"시:분 범위를 벗어났습니다: {anchor_time!r}")
+    return hh, mm
+
+
+def compute_next_due(after_utc: dt.datetime, interval_hours: float, anchor_time: str) -> dt.datetime:
+    """anchor_time(로컬 HH:MM)을 기준으로 interval_hours 간격으로 반복되는
+    시각들 중, after_utc 이후 가장 가까운 다음 시각을 UTC로 돌려준다.
+    예) anchor 08:00, interval 12시간 -> 매일 08:00, 20:00.
+    PC가 오래 꺼져 있었다면 지나간 슬롯은 건너뛰고 다음 슬롯으로 바로 넘어간다
+    (밀린 만큼 몰아서 발송하지 않음)."""
+    hh, mm = parse_anchor_time(anchor_time)
+    interval_hours = float(interval_hours)
+    if interval_hours <= 0:
+        raise ValueError("interval_hours 는 0보다 커야 합니다.")
+
+    local_after = after_utc.astimezone()
+    base = local_after.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    step = dt.timedelta(hours=interval_hours)
+    elapsed_steps = (local_after - base) / step
+    n = math.floor(elapsed_steps) + 1  # base + n*step 이 local_after보다 뒤가 되는 최소 n
+    next_slot = base + n * step
+    return to_utc(next_slot)
+
+
 def strip_html(html: str) -> str:
     html = re.sub(r"(?is)<(script|style).*?</\1>", " ", html)
     text = re.sub(r"(?s)<[^>]+>", " ", html)
@@ -169,44 +206,94 @@ def get_msg_datetime(msg):
 # --------------------------------------------------------------------------- #
 # 설정 / 상태
 # --------------------------------------------------------------------------- #
-def load_config() -> dict:
+def load_raw_config() -> dict:
+    """검증·기본값 채우기 없이 config.yaml을 그대로 읽는다. 파일이 없으면 빈 dict.
+    (관리자 UI처럼 아직 불완전한 설정도 다뤄야 하는 경우에 사용)"""
     if not CONFIG_PATH.exists():
-        log(f"[오류] 설정 파일이 없습니다: {CONFIG_PATH}")
-        log("      config.example.yaml 을 config.yaml 로 복사한 뒤 값을 채워주세요.")
-        sys.exit(1)
+        return {}
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+        return yaml.safe_load(f) or {}
 
-    # recipients: 문자열 하나만 적어도, 목록으로 적어도 모두 허용
+
+def normalize_config(cfg: dict) -> dict:
+    """누락된 섹션에 기본값을 채우고 recipients를 리스트로 정규화한다.
+    검증(필수값 존재 확인)은 하지 않는다 — 그건 validate_config()의 역할."""
+    cfg = dict(cfg or {})
+
     recipients = cfg.get("recipients")
     if isinstance(recipients, str):
         recipients = [recipients]
-    recipients = [r for r in (recipients or []) if r]
+    cfg["recipients"] = [r for r in (recipients or []) if r]
 
+    cfg["accounts"] = cfg.get("accounts") or []
+    cfg["sender"] = dict(cfg.get("sender") or {})
+    cfg["imap"] = dict(cfg.get("imap") or {})
+    cfg["imap"].setdefault("host", "imap.worksmobile.com")
+    cfg["imap"].setdefault("port", 993)
+    cfg["smtp"] = dict(cfg.get("smtp") or {})
+    cfg["smtp"].setdefault("host", "smtp.worksmobile.com")
+    cfg["smtp"].setdefault("port", 587)
+    cfg["gemini"] = dict(cfg.get("gemini") or {})
+    cfg["gemini"].setdefault("model", "gemini-flash-latest")
+    cfg["schedule"] = dict(cfg.get("schedule") or {})
+    cfg["schedule"].setdefault("interval_hours", 24)
+    cfg["schedule"].setdefault("anchor_time", "08:00")
+    cfg["admin_ui"] = dict(cfg.get("admin_ui") or {})
+    cfg.setdefault("lookback_hours", 24)
+    cfg.setdefault("body_char_limit", 2000)
+    return cfg
+
+
+def validate_config(cfg: dict) -> list:
+    """정규화된 cfg에 대해 실행에 필요한 필수값이 다 있는지 확인하고
+    문제 메시지 목록을 돌려준다(문제 없으면 빈 리스트)."""
     problems = []
     if not cfg.get("accounts"):
         problems.append("accounts(수집할 공용 계정 목록)가 비어 있습니다.")
     if not (cfg.get("sender") or {}).get("email"):
         problems.append("sender.email(발송 계정)이 없습니다.")
-    if not recipients:
+    if not cfg.get("recipients"):
         problems.append("recipients(요약을 받을 개인 메일 목록)가 비어 있습니다.")
     if not (cfg.get("gemini") or {}).get("api_key"):
         problems.append("gemini.api_key(제미나이 API 키)가 없습니다.")
+    schedule = cfg.get("schedule") or {}
+    try:
+        parse_anchor_time(schedule.get("anchor_time", "08:00"))
+    except ValueError:
+        problems.append("schedule.anchor_time 형식이 올바르지 않습니다 ('HH:MM').")
+    interval = schedule.get("interval_hours")
+    try:
+        if interval is None or float(interval) <= 0:
+            problems.append("schedule.interval_hours 는 0보다 큰 숫자여야 합니다.")
+    except (TypeError, ValueError):
+        problems.append("schedule.interval_hours 는 숫자여야 합니다.")
+    return problems
+
+
+def load_config() -> dict:
+    """실행에 필요한 완전한 설정을 읽는다. 파일이 없거나 필수값이 빠졌으면
+    로그를 남기고 종료한다(배치 스크립트용 — 관리자 UI는 load_raw_config +
+    normalize_config + validate_config 를 직접 조합해서 쓴다)."""
+    if not CONFIG_PATH.exists():
+        log(f"[오류] 설정 파일이 없습니다: {CONFIG_PATH}")
+        log("      config.example.yaml 을 config.yaml 로 복사한 뒤 값을 채워주세요.")
+        sys.exit(1)
+
+    cfg = normalize_config(load_raw_config())
+    problems = validate_config(cfg)
     if problems:
         log("[오류] config.yaml 설정을 확인하세요:")
         for p in problems:
             log("      - " + p)
         sys.exit(1)
-
-    cfg["recipients"] = recipients
-    cfg.setdefault("imap", {}).setdefault("host", "imap.worksmobile.com")
-    cfg["imap"].setdefault("port", 993)
-    cfg.setdefault("smtp", {}).setdefault("host", "smtp.worksmobile.com")
-    cfg["smtp"].setdefault("port", 587)
-    cfg.setdefault("lookback_hours", 24)
-    cfg.setdefault("body_char_limit", 2000)
-    cfg["gemini"].setdefault("model", "gemini-flash-latest")
     return cfg
+
+
+def save_config(cfg: dict) -> None:
+    """cfg 전체를 config.yaml에 그대로 덮어쓴다. (주의: 사람이 손으로 넣은
+    주석은 보존되지 않는다 — 관리자 UI로 저장한 뒤에는 주석이 사라진다.)"""
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
 
 
 def load_state() -> dict:
@@ -374,83 +461,68 @@ th{{background:#f4f4f4}} h2{{margin-top:22px}}
 # --------------------------------------------------------------------------- #
 # 점검 모드
 # --------------------------------------------------------------------------- #
-def run_test(cfg: dict) -> None:
-    log("=== 연결 점검 시작 ===")
+def check_connections(cfg: dict) -> tuple:
+    """IMAP(계정별)/SMTP/Gemini를 실제로 접속해보고 (ok: bool, lines: list[str])를
+    돌려준다. 종료(sys.exit)하지 않으므로 CLI(run_test)와 관리자 UI 양쪽에서 쓴다."""
     ok = True
+    lines = []
     for acct in cfg["accounts"]:
         try:
             M = imaplib.IMAP4_SSL(cfg["imap"]["host"], int(cfg["imap"]["port"]))
             M.login(acct["email"], acct["password"])
             M.select("INBOX", readonly=True)
             M.logout()
-            log(f"  IMAP 로그인 OK: {acct['email']}")
+            lines.append(f"IMAP 로그인 OK: {acct['email']}")
         except Exception as e:
             ok = False
-            log(f"  IMAP 로그인 실패: {acct['email']} -> {e}")
+            lines.append(f"IMAP 로그인 실패: {acct['email']} -> {e}")
     try:
         ctx = ssl.create_default_context()
         with smtplib.SMTP(cfg["smtp"]["host"], int(cfg["smtp"]["port"]), timeout=60) as s:
             s.starttls(context=ctx)
             s.login(cfg["sender"]["email"], cfg["sender"]["password"])
-        log(f"  SMTP 로그인 OK: {cfg['sender']['email']}")
+        lines.append(f"SMTP 로그인 OK: {cfg['sender']['email']}")
     except Exception as e:
         ok = False
-        log(f"  SMTP 로그인 실패: {cfg['sender']['email']} -> {e}")
+        lines.append(f"SMTP 로그인 실패: {cfg['sender']['email']} -> {e}")
     try:
         reply = summarize_with_gemini("이 메시지에는 '정상' 이라는 단어 하나로만 답하세요.", cfg)
-        log(f"  Gemini API OK (모델: {cfg['gemini']['model']}) 응답: {reply[:30]}")
+        lines.append(f"Gemini API OK (모델: {cfg['gemini']['model']}) 응답: {reply[:30]}")
     except Exception as e:
         ok = False
-        log(f"  Gemini API 실패: {e}")
-    log(f"  수신자: {', '.join(cfg['recipients'])}")
+        lines.append(f"Gemini API 실패: {e}")
+    lines.append(f"수신자: {', '.join(cfg['recipients'])}")
+    try:
+        next_due = compute_next_due(dt.datetime.now(dt.timezone.utc),
+                                     cfg["schedule"]["interval_hours"],
+                                     cfg["schedule"]["anchor_time"])
+        lines.append(f"다음 예정 발송 시각: {next_due.astimezone():%Y-%m-%d %H:%M} 로컬 "
+                     f"(취합 간격 {cfg['schedule']['interval_hours']}시간, "
+                     f"기준 시각 {cfg['schedule']['anchor_time']})")
+    except ValueError as e:
+        ok = False
+        lines.append(f"schedule 설정 오류: {e}")
+    return ok, lines
+
+
+def run_test(cfg: dict) -> None:
+    log("=== 연결 점검 시작 ===")
+    ok, lines = check_connections(cfg)
+    for line in lines:
+        log("  " + line)
     log("=== 점검 완료: " + ("모두 정상 ✅" if ok else "실패 항목 있음 ❌") + " ===")
     sys.exit(0 if ok else 1)
 
 
 # --------------------------------------------------------------------------- #
-# 메인
+# 수집 + 요약 (main()과 --watch-once 양쪽이 공유)
 # --------------------------------------------------------------------------- #
-def main() -> None:
-    ap = argparse.ArgumentParser(description="네이버 웍스 공용계정 일일 메일 요약")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="발송하지 않고 리포트를 화면에만 출력")
-    range_group = ap.add_mutually_exclusive_group()
-    range_group.add_argument("--since-hours", type=float, default=None,
-                    help="최근 N시간 메일을 강제로 수집(state 무시)")
-    range_group.add_argument("--date", type=str, default=None,
-                    help="YYYY-MM-DD 형식. 지정한 날짜 하루치 메일만 수집·요약·발송"
-                         "(테스트용. state.json은 갱신하지 않음)")
-    ap.add_argument("--test", action="store_true",
-                    help="IMAP/SMTP 로그인만 점검하고 종료")
-    args = ap.parse_args()
-
-    cfg = load_config()
-
-    if args.test:
-        run_test(cfg)
-
-    state = load_state()
-    now = dt.datetime.now(dt.timezone.utc)
-    until_dt = None
-
-    if args.date is not None:
-        try:
-            since_dt, until_dt = parse_date_range(args.date)
-        except ValueError:
-            log(f"[오류] --date 형식이 올바르지 않습니다. 'YYYY-MM-DD' 형식으로 입력하세요 (예: 2026-07-15). 입력값: {args.date}")
-            sys.exit(1)
-    elif args.since_hours is not None:
-        since_dt = now - dt.timedelta(hours=args.since_hours)
-    elif state.get("last_run"):
-        since_dt = dt.datetime.fromisoformat(state["last_run"])
-        if since_dt.tzinfo is None:
-            since_dt = since_dt.replace(tzinfo=dt.timezone.utc)
-    else:
-        since_dt = now - dt.timedelta(hours=float(cfg["lookback_hours"]))
-
+def collect_and_build_report(cfg: dict, since_dt: dt.datetime, until_dt: dt.datetime = None) -> tuple:
+    """since_dt(~until_dt) 구간의 메일을 모든 계정에서 모아 Gemini로 요약한
+    마크다운 리포트를 만든다. (report_markdown, total_count) 를 돌려준다."""
     if until_dt is not None:
         log(f"수집 시작 (구간: {since_dt.astimezone():%Y-%m-%d %H:%M} ~ "
-            f"{until_dt.astimezone():%Y-%m-%d %H:%M} 로컬, --date 테스트 모드)")
+            f"{until_dt.astimezone():%Y-%m-%d %H:%M} 로컬)")
     else:
         log(f"수집 시작 (기준 시각 이후: {since_dt.astimezone():%Y-%m-%d %H:%M} 로컬)")
 
@@ -493,6 +565,106 @@ def main() -> None:
     footer = (f"\n\n---\n_생성: {dt.datetime.now():%Y-%m-%d %H:%M} · "
               f"수집 계정 {len(cfg['accounts'])}개 · 신규 {total}건_")
     report += footer
+    return report, total
+
+
+# --------------------------------------------------------------------------- #
+# --watch-once: 스케줄에 따라 "지금이 발송할 때인가"만 확인하고, 맞으면 발송
+# --------------------------------------------------------------------------- #
+def run_watch_once(cfg: dict, dry_run: bool) -> None:
+    state = load_state()
+    now = dt.datetime.now(dt.timezone.utc)
+    interval_hours = cfg["schedule"]["interval_hours"]
+    anchor_time = cfg["schedule"]["anchor_time"]
+
+    next_due_str = state.get("next_due")
+    if next_due_str:
+        next_due = dt.datetime.fromisoformat(next_due_str)
+        if next_due.tzinfo is None:
+            next_due = next_due.replace(tzinfo=dt.timezone.utc)
+    else:
+        # 최초 실행: 아직 스케줄이 없으므로 다음 슬롯만 계산해두고 이번엔 발송하지 않는다
+        next_due = compute_next_due(now, interval_hours, anchor_time)
+        state["next_due"] = next_due.isoformat()
+        save_state(state)
+        log(f"[watch] 스케줄 초기화. 다음 발송 예정: {next_due.astimezone():%Y-%m-%d %H:%M} 로컬")
+        return
+
+    if now < next_due:
+        log(f"[watch] 아직 발송 시각이 아님 (다음 예정: {next_due.astimezone():%Y-%m-%d %H:%M} 로컬)")
+        return
+
+    since_dt = next_due - dt.timedelta(hours=float(interval_hours))
+    log(f"[watch] 발송 시각 도달 ({next_due.astimezone():%Y-%m-%d %H:%M} 로컬) — 수집 시작")
+    report, total = collect_and_build_report(cfg, since_dt)
+
+    if dry_run:
+        log("[watch][dry-run] 발송하지 않고 출력만 합니다 (다음 예정 시각도 갱신하지 않음).\n")
+        print("=" * 70)
+        print(report)
+        print("=" * 70)
+        return
+
+    try:
+        send_report(report, cfg, total)
+    except Exception as e:
+        log(f"[watch] 발송 실패, 다음 예정 시각을 갱신하지 않고 다음 체크 때 재시도합니다 -> {e}")
+        return
+
+    state["next_due"] = compute_next_due(next_due, interval_hours, anchor_time).isoformat()
+    save_state(state)
+    log(f"[watch] 완료. 다음 발송 예정: {state['next_due']}")
+
+
+# --------------------------------------------------------------------------- #
+# 메인
+# --------------------------------------------------------------------------- #
+def main() -> None:
+    ap = argparse.ArgumentParser(description="네이버 웍스 공용계정 일일 메일 요약")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="발송하지 않고 리포트를 화면에만 출력")
+    range_group = ap.add_mutually_exclusive_group()
+    range_group.add_argument("--since-hours", type=float, default=None,
+                    help="최근 N시간 메일을 강제로 수집(state 무시)")
+    range_group.add_argument("--date", type=str, default=None,
+                    help="YYYY-MM-DD 형식. 지정한 날짜 하루치 메일만 수집·요약·발송"
+                         "(테스트용. state.json은 갱신하지 않음)")
+    range_group.add_argument("--watch-once", action="store_true",
+                    help="config.yaml의 schedule(취합 간격/발송 시각)에 따라 지금이 "
+                         "발송할 때인지만 확인하고, 맞으면 그때만 발송(자동화용)")
+    ap.add_argument("--test", action="store_true",
+                    help="IMAP/SMTP/Gemini 연결만 점검하고 종료")
+    args = ap.parse_args()
+
+    cfg = load_config()
+
+    if args.test:
+        run_test(cfg)
+
+    if args.watch_once:
+        run_watch_once(cfg, args.dry_run)
+        return
+
+    state = load_state()
+    now = dt.datetime.now(dt.timezone.utc)
+    until_dt = None
+
+    if args.date is not None:
+        try:
+            since_dt, until_dt = parse_date_range(args.date)
+        except ValueError:
+            log(f"[오류] --date 형식이 올바르지 않습니다. 'YYYY-MM-DD' 형식으로 입력하세요 (예: 2026-07-15). 입력값: {args.date}")
+            sys.exit(1)
+    elif args.since_hours is not None:
+        since_dt = now - dt.timedelta(hours=args.since_hours)
+    elif state.get("last_run"):
+        since_dt = dt.datetime.fromisoformat(state["last_run"])
+        if since_dt.tzinfo is None:
+            since_dt = since_dt.replace(tzinfo=dt.timezone.utc)
+    else:
+        since_dt = now - dt.timedelta(hours=float(cfg["lookback_hours"]))
+
+    report, total = collect_and_build_report(cfg, since_dt, until_dt)
 
     if args.dry_run:
         log("[dry-run] 아래 리포트를 발송하지 않고 출력만 합니다.\n")

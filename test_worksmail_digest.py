@@ -195,6 +195,194 @@ class TestBuildPrompt:
 
 
 # --------------------------------------------------------------------------- #
+# parse_anchor_time / compute_next_due
+# --------------------------------------------------------------------------- #
+class TestParseAnchorTime:
+    def test_parses_valid_time(self):
+        assert w.parse_anchor_time("08:00") == (8, 0)
+        assert w.parse_anchor_time("23:59") == (23, 59)
+
+    def test_invalid_format_raises(self):
+        with pytest.raises(ValueError):
+            w.parse_anchor_time("8am")
+
+    def test_out_of_range_hour_raises(self):
+        with pytest.raises(ValueError):
+            w.parse_anchor_time("25:00")
+
+    def test_out_of_range_minute_raises(self):
+        with pytest.raises(ValueError):
+            w.parse_anchor_time("10:60")
+
+
+class TestComputeNextDue:
+    def _local(self, y, mo, d, h, mi):
+        return w.to_utc(dt.datetime(y, mo, d, h, mi))
+
+    def test_before_anchor_fires_today(self):
+        after = self._local(2026, 7, 16, 7, 0)
+        local = w.compute_next_due(after, 24, "08:00").astimezone()
+        assert (local.year, local.month, local.day, local.hour, local.minute) == (2026, 7, 16, 8, 0)
+
+    def test_after_anchor_fires_next_day(self):
+        after = self._local(2026, 7, 16, 9, 0)
+        local = w.compute_next_due(after, 24, "08:00").astimezone()
+        assert (local.year, local.month, local.day, local.hour, local.minute) == (2026, 7, 17, 8, 0)
+
+    def test_exactly_at_anchor_moves_to_next_slot(self):
+        after = self._local(2026, 7, 16, 8, 0)
+        local = w.compute_next_due(after, 24, "08:00").astimezone()
+        assert (local.year, local.month, local.day) == (2026, 7, 17)
+
+    def test_twice_daily_interval_picks_nearest_later_slot(self):
+        after = self._local(2026, 7, 16, 9, 0)
+        local = w.compute_next_due(after, 12, "08:00").astimezone()
+        assert (local.day, local.hour, local.minute) == (16, 20, 0)
+
+    def test_every_six_hours_picks_nearest_later_slot(self):
+        after = self._local(2026, 7, 16, 15, 0)
+        local = w.compute_next_due(after, 6, "08:00").astimezone()
+        assert (local.day, local.hour, local.minute) == (16, 20, 0)
+
+    def test_long_downtime_skips_forward_instead_of_backlog(self):
+        # 원래 스케줄이 몇 주 전 것이어도, 지나간 슬롯을 몰아서 주지 않고
+        # after 시각 기준 바로 다음 슬롯 하나만 돌려줘야 한다.
+        after = self._local(2026, 7, 1, 8, 5)
+        local = w.compute_next_due(after, 24, "08:00").astimezone()
+        assert (local.year, local.month, local.day) == (2026, 7, 2)
+
+    def test_zero_interval_raises(self):
+        with pytest.raises(ValueError):
+            w.compute_next_due(self._local(2026, 7, 16, 9, 0), 0, "08:00")
+
+    def test_negative_interval_raises(self):
+        with pytest.raises(ValueError):
+            w.compute_next_due(self._local(2026, 7, 16, 9, 0), -6, "08:00")
+
+    def test_invalid_anchor_raises(self):
+        with pytest.raises(ValueError):
+            w.compute_next_due(self._local(2026, 7, 16, 9, 0), 24, "not-a-time")
+
+
+# --------------------------------------------------------------------------- #
+# load_raw_config / normalize_config / validate_config / save_config
+# --------------------------------------------------------------------------- #
+class TestLoadRawConfig:
+    def test_missing_file_returns_empty_dict(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(w, "CONFIG_PATH", tmp_path / "nope.yaml")
+        assert w.load_raw_config() == {}
+
+    def test_empty_file_returns_empty_dict(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text("", encoding="utf-8")
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        assert w.load_raw_config() == {}
+
+    def test_reads_existing_yaml_as_is(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text("recipients:\n  - a@x.com\n", encoding="utf-8")
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        assert w.load_raw_config() == {"recipients": ["a@x.com"]}
+
+
+class TestNormalizeConfig:
+    def test_fills_all_defaults_on_empty_input(self):
+        cfg = w.normalize_config({})
+        assert cfg["imap"]["host"] == "imap.worksmobile.com"
+        assert cfg["smtp"]["port"] == 587
+        assert cfg["gemini"]["model"] == "gemini-flash-latest"
+        assert cfg["schedule"]["interval_hours"] == 24
+        assert cfg["schedule"]["anchor_time"] == "08:00"
+        assert cfg["accounts"] == []
+        assert cfg["recipients"] == []
+        assert cfg["admin_ui"] == {}
+
+    def test_preserves_provided_values(self):
+        cfg = w.normalize_config({"schedule": {"interval_hours": 6, "anchor_time": "09:30"}})
+        assert cfg["schedule"]["interval_hours"] == 6
+        assert cfg["schedule"]["anchor_time"] == "09:30"
+
+    def test_normalizes_string_recipient_to_list(self):
+        cfg = w.normalize_config({"recipients": "solo@x.com"})
+        assert cfg["recipients"] == ["solo@x.com"]
+
+    def test_does_not_mutate_input_dict(self):
+        original = {"recipients": "solo@x.com"}
+        w.normalize_config(original)
+        assert original == {"recipients": "solo@x.com"}
+
+
+class TestValidateConfig:
+    def _valid_cfg(self):
+        return w.normalize_config({
+            "accounts": [{"name": "a", "email": "a@x.com", "password": "pw"}],
+            "sender": {"email": "a@x.com", "password": "pw"},
+            "recipients": ["me@x.com"],
+            "gemini": {"api_key": "KEY"},
+        })
+
+    def test_valid_config_has_no_problems(self):
+        assert w.validate_config(self._valid_cfg()) == []
+
+    def test_missing_accounts_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["accounts"] = []
+        problems = w.validate_config(cfg)
+        assert any("accounts" in p for p in problems)
+
+    def test_missing_sender_email_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["sender"] = {}
+        problems = w.validate_config(cfg)
+        assert any("sender" in p for p in problems)
+
+    def test_missing_recipients_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["recipients"] = []
+        problems = w.validate_config(cfg)
+        assert any("recipients" in p for p in problems)
+
+    def test_missing_gemini_key_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["gemini"] = {}
+        problems = w.validate_config(cfg)
+        assert any("gemini" in p for p in problems)
+
+    def test_bad_anchor_time_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["schedule"]["anchor_time"] = "nope"
+        problems = w.validate_config(cfg)
+        assert any("anchor_time" in p for p in problems)
+
+    def test_zero_interval_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["schedule"]["interval_hours"] = 0
+        problems = w.validate_config(cfg)
+        assert any("interval_hours" in p for p in problems)
+
+    def test_non_numeric_interval_is_a_problem(self):
+        cfg = self._valid_cfg()
+        cfg["schedule"]["interval_hours"] = "many"
+        problems = w.validate_config(cfg)
+        assert any("interval_hours" in p for p in problems)
+
+
+class TestSaveConfig:
+    def test_roundtrip_via_load_raw_config(self, tmp_path, monkeypatch):
+        cfg_path = tmp_path / "config.yaml"
+        monkeypatch.setattr(w, "CONFIG_PATH", cfg_path)
+        cfg = w.normalize_config({
+            "accounts": [{"name": "a", "email": "a@x.com", "password": "pw"}],
+            "recipients": ["me@x.com"],
+        })
+        w.save_config(cfg)
+        reloaded = w.load_raw_config()
+        assert reloaded["accounts"] == cfg["accounts"]
+        assert reloaded["recipients"] == ["me@x.com"]
+        assert reloaded["schedule"]["anchor_time"] == "08:00"
+
+
+# --------------------------------------------------------------------------- #
 # load_config / load_state / save_state
 # --------------------------------------------------------------------------- #
 class TestLoadConfig:

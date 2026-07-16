@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>WorksMail 관리자 UI</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic', sans-serif; background:#f4f5f7; margin:0;
+         color:#222; }
+  header { background:#1f2a44; color:#fff; padding:14px 24px; display:flex;
+           justify-content:space-between; align-items:center; }
+  header h1 { font-size:16px; margin:0; }
+  header a { color:#c9d4ee; text-decoration:none; font-size:13px; }
+  header a:hover { color:#fff; }
+  main { max-width:900px; margin:24px auto; padding:0 16px 48px; }
+  .card { background:#fff; border-radius:8px; padding:20px 24px; margin-bottom:18px;
+          box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .card h2 { font-size:15px; margin:0 0 14px; border-bottom:1px solid #eee;
+             padding-bottom:8px; }
+  .card p.desc { color:#777; font-size:12px; margin:-8px 0 14px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid #eee; }
+  th { color:#888; font-weight:600; font-size:12px; }
+  .row-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=text], input[type=email], input[type=password], input[type=number],
+  input[type=time], select {
+    padding:7px 9px; border:1px solid #ccc; border-radius:4px; font-size:13px;
+  }
+  button, .btn { padding:7px 14px; background:#2d6cdf; color:#fff; border:none;
+                 border-radius:4px; cursor:pointer; font-size:13px; }
+  button:hover, .btn:hover { background:#1f56b8; }
+  button.danger { background:#c0392b; }
+  button.danger:hover { background:#992d22; }
+  button.ghost { background:#eef1f6; color:#333; }
+  button.ghost:hover { background:#dfe4ee; }
+  .inline-form { display:inline; }
+  .flash { padding:10px 14px; border-radius:4px; font-size:13px; margin-bottom:12px; }
+  .flash.error { background:#fdecea; color:#b3261e; }
+  .flash.ok { background:#e8f5e9; color:#256029; }
+  .flash.warn { background:#fff8e1; color:#8a6100; }
+  .problems { background:#fff8e1; border:1px solid #f1d38a; color:#8a6100;
+              border-radius:6px; padding:12px 16px; font-size:13px; margin-bottom:18px; }
+  .problems ul { margin:6px 0 0; padding-left:18px; }
+  .muted { color:#999; font-size:12px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px;
+           background:#eef1f6; color:#555; }
+  pre.log { background:#101418; color:#c9d1d9; padding:12px; border-radius:6px;
+            font-size:12px; max-height:260px; overflow:auto; white-space:pre-wrap; }
+  .next-due { font-size:13px; color:#2d6cdf; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📬 WorksMail 관리자 UI</h1>
+  <div><a href="#admin-password">비밀번호 변경</a> &nbsp;|&nbsp; <a href="{{ url_for('logout') }}">로그아웃</a></div>
+</header>
+<main>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash {{ category }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if problems %}
+  <div class="problems">
+    <strong>⚠️ 아직 실행할 수 없는 상태입니다 — 아래 항목을 채워주세요:</strong>
+    <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <!-- 모니터링 계정 -->
+  <div class="card">
+    <h2>📥 모니터링할 메일주소 목록</h2>
+    <p class="desc">여기 등록된 공용 계정들의 받은편지함을 매번 IMAP으로 수집합니다.</p>
+    <table>
+      <tr><th>이름</th><th>이메일</th><th>비밀번호 변경</th><th></th></tr>
+      {% for a in cfg.accounts %}
+      <tr>
+        <td>{{ a.name }}{% if cfg.sender.email == a.email %} <span class="badge">발송계정</span>{% endif %}</td>
+        <td>{{ a.email }}</td>
+        <td>
+          <form class="row-form inline-form" method="post" action="{{ url_for('accounts_password') }}">
+            <input type="hidden" name="email" value="{{ a.email }}">
+            <input type="password" name="password" placeholder="새 비밀번호" size="14">
+            <button type="submit" class="ghost">변경</button>
+          </form>
+        </td>
+        <td>
+          <form class="inline-form" method="post" action="{{ url_for('accounts_delete') }}"
+                onsubmit="return confirm('{{ a.email }} 계정을 삭제할까요?');">
+            <input type="hidden" name="email" value="{{ a.email }}">
+            <button type="submit" class="danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">등록된 계정이 없습니다.</td></tr>
+      {% endfor %}
+    </table>
+    <form class="row-form" method="post" action="{{ url_for('accounts_add') }}">
+      <input type="text" name="name" placeholder="이름 (예: info)" size="12">
+      <input type="email" name="email" placeholder="이메일" required size="20">
+      <input type="password" name="password" placeholder="비밀번호(또는 외부앱 비밀번호)" required size="20">
+      <button type="submit">계정 추가</button>
+    </form>
+  </div>
+
+  <!-- 수신자 -->
+  <div class="card">
+    <h2>📤 요약 메일을 받을 수신자</h2>
+    <p class="desc">여기 등록된 주소로 요약 리포트가 발송됩니다.</p>
+    <table>
+      <tr><th>이메일</th><th></th></tr>
+      {% for r in cfg.recipients %}
+      <tr>
+        <td>{{ r }}</td>
+        <td>
+          <form class="inline-form" method="post" action="{{ url_for('recipients_delete') }}"
+                onsubmit="return confirm('{{ r }} 수신자를 삭제할까요?');">
+            <input type="hidden" name="email" value="{{ r }}">
+            <button type="submit" class="danger">삭제</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="muted">등록된 수신자가 없습니다.</td></tr>
+      {% endfor %}
+    </table>
+    <form class="row-form" method="post" action="{{ url_for('recipients_add') }}">
+      <input type="email" name="email" placeholder="추가할 이메일" required size="24">
+      <button type="submit">수신자 추가</button>
+    </form>
+  </div>
+
+  <!-- 발송 계정 -->
+  <div class="card">
+    <h2>✉️ 발송 계정</h2>
+    <p class="desc">요약 메일을 실제로 보낼 때 사용할 계정 (위 모니터링 계정 중 선택).</p>
+    <form class="row-form" method="post" action="{{ url_for('sender_save') }}">
+      <select name="email">
+        {% for a in cfg.accounts %}
+        <option value="{{ a.email }}" {% if cfg.sender.email == a.email %}selected{% endif %}>{{ a.email }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="display_name" placeholder="보내는 이름"
+             value="{{ cfg.sender.display_name or '공용메일 요약' }}" size="18">
+      <button type="submit">저장</button>
+    </form>
+  </div>
+
+  <!-- 스케줄 -->
+  <div class="card">
+    <h2>⏱ 취합 단위 &amp; 발송 시각</h2>
+    <p class="desc">
+      "발송 시각"을 기준으로 "취합 간격"마다 반복해서 발송합니다.
+      예) 발송 시각 08:00 + 간격 12시간 → 매일 08:00, 20:00 두 번 발송.
+      간격을 24시간으로 두면 하루에 한 번만 발송됩니다.
+    </p>
+    <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
+      <label>취합 간격:
+        <select name="interval_hours">
+          {% for h in [1,2,3,4,6,8,12,24] %}
+          <option value="{{ h }}" {% if cfg.schedule.interval_hours|float == h %}selected{% endif %}>{{ h }}시간마다</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>발송(기준) 시각:
+        <input type="time" name="anchor_time" value="{{ cfg.schedule.anchor_time }}">
+      </label>
+      <button type="submit">저장</button>
+    </form>
+    {% if next_due_preview %}
+    <p class="next-due">다음 예정 발송: {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }} (이 PC 로컬 시각 기준)</p>
+    {% endif %}
+  </div>
+
+  <!-- Gemini -->
+  <div class="card">
+    <h2>🤖 Gemini API</h2>
+    <p class="desc">비워두고 저장하면 기존 API 키가 유지됩니다.</p>
+    <form class="row-form" method="post" action="{{ url_for('gemini_save') }}">
+      <input type="password" name="api_key" placeholder="{{ '저장된 키 있음 (변경하려면 입력)' if cfg.gemini.api_key else 'API 키 입력' }}" size="30">
+      <input type="text" name="model" value="{{ cfg.gemini.model }}" size="20">
+      <button type="submit">저장</button>
+    </form>
+  </div>
+
+  <!-- 연결 테스트 -->
+  <div class="card">
+    <h2>🔌 연결 테스트</h2>
+    <p class="desc">저장된 설정으로 IMAP/SMTP/Gemini에 실제로 접속해봅니다.</p>
+    <form method="post" action="{{ url_for('test_connection') }}">
+      <button type="submit">지금 테스트</button>
+    </form>
+  </div>
+
+  <!-- 최근 로그 -->
+  <div class="card">
+    <h2>📜 최근 로그</h2>
+    <pre class="log">{% for line in log_tail %}{{ line }}
+{% else %}(아직 로그가 없습니다){% endfor %}</pre>
+  </div>
+
+  <!-- 관리자 비밀번호 변경 -->
+  <div class="card" id="admin-password">
+    <h2>🔒 관리자 UI 비밀번호 변경</h2>
+    <form class="row-form" method="post" action="{{ url_for('admin_password_save') }}">
+      <input type="password" name="password" placeholder="새 비밀번호" required>
+      <input type="password" name="password2" placeholder="새 비밀번호 확인" required>
+      <button type="submit">변경</button>
+    </form>
+  </div>
+
+</main>
+</body>
+</html>
