@@ -215,53 +215,66 @@ class TestParseAnchorTime:
             w.parse_anchor_time("10:60")
 
 
-class TestComputeNextDue:
+class TestComputeFirstDue:
+    """스케줄을 처음 켤 때 딱 한 번만 쓰이는 anchor 기반 계산."""
+
     def _local(self, y, mo, d, h, mi):
         return w.to_utc(dt.datetime(y, mo, d, h, mi))
 
-    def test_before_anchor_fires_today(self):
-        after = self._local(2026, 7, 16, 7, 0)
-        local = w.compute_next_due(after, 24, "08:00").astimezone()
+    def test_anchor_still_ahead_today_fires_today(self):
+        now = self._local(2026, 7, 16, 7, 0)
+        local = w.compute_first_due(now, "08:00").astimezone()
         assert (local.year, local.month, local.day, local.hour, local.minute) == (2026, 7, 16, 8, 0)
 
-    def test_after_anchor_fires_next_day(self):
-        after = self._local(2026, 7, 16, 9, 0)
-        local = w.compute_next_due(after, 24, "08:00").astimezone()
+    def test_anchor_already_passed_today_fires_tomorrow(self):
+        now = self._local(2026, 7, 16, 9, 0)
+        local = w.compute_first_due(now, "08:00").astimezone()
         assert (local.year, local.month, local.day, local.hour, local.minute) == (2026, 7, 17, 8, 0)
 
-    def test_exactly_at_anchor_moves_to_next_slot(self):
-        after = self._local(2026, 7, 16, 8, 0)
-        local = w.compute_next_due(after, 24, "08:00").astimezone()
+    def test_exactly_at_anchor_counts_as_passed_fires_tomorrow(self):
+        now = self._local(2026, 7, 16, 8, 0)
+        local = w.compute_first_due(now, "08:00").astimezone()
         assert (local.year, local.month, local.day) == (2026, 7, 17)
-
-    def test_twice_daily_interval_picks_nearest_later_slot(self):
-        after = self._local(2026, 7, 16, 9, 0)
-        local = w.compute_next_due(after, 12, "08:00").astimezone()
-        assert (local.day, local.hour, local.minute) == (16, 20, 0)
-
-    def test_every_six_hours_picks_nearest_later_slot(self):
-        after = self._local(2026, 7, 16, 15, 0)
-        local = w.compute_next_due(after, 6, "08:00").astimezone()
-        assert (local.day, local.hour, local.minute) == (16, 20, 0)
-
-    def test_long_downtime_skips_forward_instead_of_backlog(self):
-        # 원래 스케줄이 몇 주 전 것이어도, 지나간 슬롯을 몰아서 주지 않고
-        # after 시각 기준 바로 다음 슬롯 하나만 돌려줘야 한다.
-        after = self._local(2026, 7, 1, 8, 5)
-        local = w.compute_next_due(after, 24, "08:00").astimezone()
-        assert (local.year, local.month, local.day) == (2026, 7, 2)
-
-    def test_zero_interval_raises(self):
-        with pytest.raises(ValueError):
-            w.compute_next_due(self._local(2026, 7, 16, 9, 0), 0, "08:00")
-
-    def test_negative_interval_raises(self):
-        with pytest.raises(ValueError):
-            w.compute_next_due(self._local(2026, 7, 16, 9, 0), -6, "08:00")
 
     def test_invalid_anchor_raises(self):
         with pytest.raises(ValueError):
-            w.compute_next_due(self._local(2026, 7, 16, 9, 0), 24, "not-a-time")
+            w.compute_first_due(self._local(2026, 7, 16, 9, 0), "not-a-time")
+
+
+class TestComputeNextDue:
+    """확인/발송한 시각(after) + 간격을 그대로 더하기만 한다 — 특정 분에 스냅하지 않음."""
+
+    def _local(self, y, mo, d, h, mi):
+        return w.to_utc(dt.datetime(y, mo, d, h, mi))
+
+    def test_adds_interval_hours_to_the_given_moment(self):
+        after = self._local(2026, 7, 16, 12, 10)
+        local = w.compute_next_due(after, 1).astimezone()
+        assert (local.hour, local.minute) == (13, 10)
+
+    def test_does_not_snap_to_any_fixed_minute(self):
+        # 12:37에 확인하고 간격이 2시간이면 14:37이어야지, 다른 분으로 스냅되면 안 된다.
+        after = self._local(2026, 7, 16, 12, 37)
+        local = w.compute_next_due(after, 2).astimezone()
+        assert (local.hour, local.minute) == (14, 37)
+
+    def test_fractional_hours_supported(self):
+        after = self._local(2026, 7, 16, 12, 0)
+        local = w.compute_next_due(after, 0.5).astimezone()
+        assert (local.hour, local.minute) == (12, 30)
+
+    def test_crosses_midnight_correctly(self):
+        after = self._local(2026, 7, 16, 23, 30)
+        local = w.compute_next_due(after, 1).astimezone()
+        assert (local.year, local.month, local.day, local.hour, local.minute) == (2026, 7, 17, 0, 30)
+
+    def test_zero_interval_raises(self):
+        with pytest.raises(ValueError):
+            w.compute_next_due(self._local(2026, 7, 16, 9, 0), 0)
+
+    def test_negative_interval_raises(self):
+        with pytest.raises(ValueError):
+            w.compute_next_due(self._local(2026, 7, 16, 9, 0), -6)
 
 
 # --------------------------------------------------------------------------- #

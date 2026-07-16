@@ -254,8 +254,9 @@ button.danger:hover{background:linear-gradient(#ff5aa8,var(--magenta-d));}
       <div class="panel">
         <div class="panel-title">⏱ 취합 단위 &amp; 발송 시각</div>
         <p class="panel-desc">
-          "발송 시각"부터 "취합 간격"마다 반복해서 보내요. 예: 08:00 기준 + 12시간 간격
-          → 매일 08:00·20:00 두 번. 24시간이면 하루 한 번.
+          "발송 시각"은 <b>맨 처음 한 번</b>만 정해요 (예: 08:00). 그 뒤로는 실제로
+          발송한 시각을 기준으로 "취합 간격"만큼씩 계속 더해가며 반복돼요
+          (예: 08:00에 첫 발송 → 간격 12시간이면 다음은 20:00, 그다음은 다음날 08:00...).
         </p>
         <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
           <label>취합 간격
@@ -265,13 +266,14 @@ button.danger:hover{background:linear-gradient(#ff5aa8,var(--magenta-d));}
               {% endfor %}
             </select>
           </label>
-          <label>발송(기준) 시각
+          <label>첫 발송 시각
             <input type="time" name="anchor_time" value="{{ cfg.schedule.anchor_time }}">
           </label>
           <button type="submit" class="primary">저장</button>
         </form>
         {% if next_due_preview %}
-        <div class="next-due">🕐 다음 예정 발송: {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }}</div>
+        <div class="next-due">🕐 지금 확인하면(미리보기): {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }}
+          <span style="font-weight:normal">(= 지금 + 취합 간격)</span></div>
         {% endif %}
       </div>
 

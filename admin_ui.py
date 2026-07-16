@@ -113,7 +113,6 @@ def dashboard():
         next_due_preview = core.compute_next_due(
             dt.datetime.now(dt.timezone.utc),
             cfg["schedule"]["interval_hours"],
-            cfg["schedule"]["anchor_time"],
         ).astimezone()
     except (ValueError, TypeError):
         pass

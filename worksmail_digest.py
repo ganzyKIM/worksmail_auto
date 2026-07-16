@@ -35,7 +35,6 @@ import datetime as dt
 import email
 import imaplib
 import json
-import math
 import re
 import smtplib
 import ssl
@@ -133,24 +132,27 @@ def parse_anchor_time(anchor_time: str):
     return hh, mm
 
 
-def compute_next_due(after_utc: dt.datetime, interval_hours: float, anchor_time: str) -> dt.datetime:
-    """anchor_time(로컬 HH:MM)을 기준으로 interval_hours 간격으로 반복되는
-    시각들 중, after_utc 이후 가장 가까운 다음 시각을 UTC로 돌려준다.
-    예) anchor 08:00, interval 12시간 -> 매일 08:00, 20:00.
-    PC가 오래 꺼져 있었다면 지나간 슬롯은 건너뛰고 다음 슬롯으로 바로 넘어간다
-    (밀린 만큼 몰아서 발송하지 않음)."""
+def compute_first_due(now_utc: dt.datetime, anchor_time: str) -> dt.datetime:
+    """스케줄을 처음 켤 때만 쓰는 함수. anchor_time(로컬 HH:MM)의 다음 발생 시각을
+    UTC로 돌려준다 — 오늘 그 시각이 아직 안 지났으면 오늘, 이미 지났으면 내일.
+    이후의 발송은 여기서 정한 첫 시각부터 compute_next_due()로 간격만큼씩
+    누적해서 정해지므로, anchor_time은 '맨 처음 한 번'에만 영향을 준다."""
     hh, mm = parse_anchor_time(anchor_time)
+    local_now = now_utc.astimezone()
+    candidate = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if candidate <= local_now:
+        candidate += dt.timedelta(days=1)
+    return to_utc(candidate)
+
+
+def compute_next_due(after_utc: dt.datetime, interval_hours: float) -> dt.datetime:
+    """after_utc(확인했거나 실제로 발송한 시각)로부터 interval_hours 뒤를 그대로
+    돌려준다. 특정 '분'에 맞춰 격자에 스냅하지 않는다 — 예) 12:10에 확인하고
+    간격이 1시간이면 다음 예정은 13:10 (13:01처럼 기준시각의 분에 맞춰지지 않음)."""
     interval_hours = float(interval_hours)
     if interval_hours <= 0:
         raise ValueError("interval_hours 는 0보다 커야 합니다.")
-
-    local_after = after_utc.astimezone()
-    base = local_after.replace(hour=hh, minute=mm, second=0, microsecond=0)
-    step = dt.timedelta(hours=interval_hours)
-    elapsed_steps = (local_after - base) / step
-    n = math.floor(elapsed_steps) + 1  # base + n*step 이 local_after보다 뒤가 되는 최소 n
-    next_slot = base + n * step
-    return to_utc(next_slot)
+    return after_utc + dt.timedelta(hours=interval_hours)
 
 
 def strip_html(html: str) -> str:
@@ -494,11 +496,9 @@ def check_connections(cfg: dict) -> tuple:
     lines.append(f"수신자: {', '.join(cfg['recipients'])}")
     try:
         next_due = compute_next_due(dt.datetime.now(dt.timezone.utc),
-                                     cfg["schedule"]["interval_hours"],
-                                     cfg["schedule"]["anchor_time"])
-        lines.append(f"다음 예정 발송 시각: {next_due.astimezone():%Y-%m-%d %H:%M} 로컬 "
-                     f"(취합 간격 {cfg['schedule']['interval_hours']}시간, "
-                     f"기준 시각 {cfg['schedule']['anchor_time']})")
+                                     cfg["schedule"]["interval_hours"])
+        lines.append(f"다음 예정 발송 시각(지금 기준): {next_due.astimezone():%Y-%m-%d %H:%M} 로컬 "
+                     f"(취합 간격 {cfg['schedule']['interval_hours']}시간)")
     except ValueError as e:
         ok = False
         lines.append(f"schedule 설정 오류: {e}")
@@ -583,8 +583,9 @@ def run_watch_once(cfg: dict, dry_run: bool) -> None:
         if next_due.tzinfo is None:
             next_due = next_due.replace(tzinfo=dt.timezone.utc)
     else:
-        # 최초 실행: 아직 스케줄이 없으므로 다음 슬롯만 계산해두고 이번엔 발송하지 않는다
-        next_due = compute_next_due(now, interval_hours, anchor_time)
+        # 최초 실행: anchor_time으로 '첫' 발송 시각만 정하고, 이번엔 발송하지 않는다.
+        # 이후로는 anchor_time을 다시 쓰지 않고 항상 "실제로 확인/발송한 시각 + 간격"으로 다음을 정한다.
+        next_due = compute_first_due(now, anchor_time)
         state["next_due"] = next_due.isoformat()
         save_state(state)
         log(f"[watch] 스케줄 초기화. 다음 발송 예정: {next_due.astimezone():%Y-%m-%d %H:%M} 로컬")
@@ -611,7 +612,9 @@ def run_watch_once(cfg: dict, dry_run: bool) -> None:
         log(f"[watch] 발송 실패, 다음 예정 시각을 갱신하지 않고 다음 체크 때 재시도합니다 -> {e}")
         return
 
-    state["next_due"] = compute_next_due(next_due, interval_hours, anchor_time).isoformat()
+    # 다음 예정 = "지금(실제로 발송한 시각)" + 간격. 목표 시각(next_due)이 아니라
+    # 실제 처리 시각(now) 기준으로 더한다 — 확인/발송한 시점 기준으로 계속 이어지게.
+    state["next_due"] = compute_next_due(now, interval_hours).isoformat()
     save_state(state)
     log(f"[watch] 완료. 다음 발송 예정: {state['next_due']}")
 
