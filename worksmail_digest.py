@@ -584,7 +584,6 @@ def run_watch_once(cfg: dict, dry_run: bool) -> None:
             next_due = next_due.replace(tzinfo=dt.timezone.utc)
     else:
         # 최초 실행: anchor_time으로 '첫' 발송 시각만 정하고, 이번엔 발송하지 않는다.
-        # 이후로는 anchor_time을 다시 쓰지 않고 항상 "실제로 확인/발송한 시각 + 간격"으로 다음을 정한다.
         next_due = compute_first_due(now, anchor_time)
         state["next_due"] = next_due.isoformat()
         save_state(state)
@@ -612,9 +611,13 @@ def run_watch_once(cfg: dict, dry_run: bool) -> None:
         log(f"[watch] 발송 실패, 다음 예정 시각을 갱신하지 않고 다음 체크 때 재시도합니다 -> {e}")
         return
 
-    # 다음 예정 = "지금(실제로 발송한 시각)" + 간격. 목표 시각(next_due)이 아니라
-    # 실제 처리 시각(now) 기준으로 더한다 — 확인/발송한 시점 기준으로 계속 이어지게.
-    state["next_due"] = compute_next_due(now, interval_hours).isoformat()
+    # 다음 예정 = "이번 목표 시각(next_due)" + 간격. 실제로 확인이 일어난 시각(now)을
+    # 기준으로 더하면 안 된다 — 작업 스케줄러는 10분 간격으로만 도니까, 발송이 실제로는
+    # 목표 시각보다 최대 10분 늦게 처리되는 게 보통이고, 그 '늦어진 시각'을 기준으로
+    # 계속 누적하면 발송 시각이 매 주기마다 몇 분씩 계속 밀리는 버그가 생긴다
+    # (실측: 매주 최대 10분씩 누적 지연). next_due를 기준으로 더해야 원래 정한
+    # 시각(예: 매일 08:50)에 계속 고정된다.
+    state["next_due"] = compute_next_due(next_due, interval_hours).isoformat()
     save_state(state)
     log(f"[watch] 완료. 다음 발송 예정: {state['next_due']}")
 

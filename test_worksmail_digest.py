@@ -11,6 +11,14 @@ import pytest
 import worksmail_digest as w
 
 
+@pytest.fixture(autouse=True)
+def _isolate_log_path(tmp_path, monkeypatch):
+    """log()는 CONFIG_PATH/STATE_PATH와 별개로 LOG_PATH에 직접 append하므로,
+    개별 테스트가 CONFIG_PATH만 몽키패치해도 log() 호출은 실제 운영 중인
+    worksmail.log로 새어나간다. 모든 테스트에 공통으로 격리해 막는다."""
+    monkeypatch.setattr(w, "LOG_PATH", tmp_path / "test_worksmail.log")
+
+
 # --------------------------------------------------------------------------- #
 # decode_mime
 # --------------------------------------------------------------------------- #
@@ -573,3 +581,83 @@ class TestSummarizeWithGemini:
         cfg = {"gemini": {"api_key": "k", "model": "gemini-2.5-flash"}}
         with pytest.raises(RuntimeError, match="파싱 실패"):
             w.summarize_with_gemini("prompt", cfg)
+
+
+# --------------------------------------------------------------------------- #
+# run_watch_once 스케줄 갱신 로직 (IMAP/Gemini/SMTP는 스텁으로 대체)
+# --------------------------------------------------------------------------- #
+class TestRunWatchOnceScheduling:
+    def _cfg(self):
+        return {
+            "accounts": [], "schedule": {"interval_hours": 24, "anchor_time": "08:50"},
+        }
+
+    def test_advances_from_target_slot_not_actual_check_time(self, tmp_path, monkeypatch):
+        """작업 스케줄러 폴링 지연(예: 목표 시각보다 최대 10분 늦게 확인)이 있어도
+        다음 예정 시각은 원래 격자(next_due + 간격)를 유지해야 한다. 실제 확인
+        시각(now) 기준으로 더하면 매 주기마다 지연이 쌓이는 회귀가 생긴다."""
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr(w, "STATE_PATH", state_path)
+
+        # next_due를 한참 과거로 둬서 "폴링 지연 끝에 지금 막 확인"한 상황을 재현
+        original_next_due = w.to_utc(dt.datetime(2020, 1, 1, 8, 50))
+        w.save_state({"next_due": original_next_due.isoformat()})
+
+        monkeypatch.setattr(w, "collect_and_build_report",
+                             lambda cfg, since_dt, until_dt=None: ("report", 1))
+        sent = {}
+        monkeypatch.setattr(w, "send_report",
+                             lambda report, cfg, total: sent.__setitem__("called", True))
+
+        w.run_watch_once(self._cfg(), dry_run=False)
+
+        assert sent.get("called") is True
+        new_next_due = dt.datetime.fromisoformat(w.load_state()["next_due"])
+        assert new_next_due == original_next_due + dt.timedelta(hours=24)
+
+    def test_does_not_advance_when_not_yet_due(self, tmp_path, monkeypatch):
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr(w, "STATE_PATH", state_path)
+        future_due = w.to_utc(dt.datetime.now() + dt.timedelta(days=365))
+        w.save_state({"next_due": future_due.isoformat()})
+
+        called = {"collect": False}
+        monkeypatch.setattr(w, "collect_and_build_report",
+                             lambda cfg, since_dt, until_dt=None: called.__setitem__("collect", True))
+
+        w.run_watch_once(self._cfg(), dry_run=False)
+
+        assert called["collect"] is False
+        assert w.load_state()["next_due"] == future_due.isoformat()
+
+    def test_first_run_initializes_without_sending(self, tmp_path, monkeypatch):
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr(w, "STATE_PATH", state_path)
+
+        called = {"collect": False}
+        monkeypatch.setattr(w, "collect_and_build_report",
+                             lambda cfg, since_dt, until_dt=None: called.__setitem__("collect", True))
+
+        w.run_watch_once(self._cfg(), dry_run=False)
+
+        assert called["collect"] is False
+        assert "next_due" in w.load_state()
+
+    def test_send_failure_does_not_advance_next_due(self, tmp_path, monkeypatch):
+        """발송이 실패하면 다음 체크 때 같은 시각으로 재시도할 수 있도록
+        next_due를 그대로 둬야 한다."""
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr(w, "STATE_PATH", state_path)
+        original_next_due = w.to_utc(dt.datetime(2020, 1, 1, 8, 50))
+        w.save_state({"next_due": original_next_due.isoformat()})
+
+        monkeypatch.setattr(w, "collect_and_build_report",
+                             lambda cfg, since_dt, until_dt=None: ("report", 1))
+        def raise_send(report, cfg, total):
+            raise RuntimeError("SMTP down")
+        monkeypatch.setattr(w, "send_report", raise_send)
+
+        w.run_watch_once(self._cfg(), dry_run=False)
+
+        unchanged = dt.datetime.fromisoformat(w.load_state()["next_due"])
+        assert unchanged == original_next_due
