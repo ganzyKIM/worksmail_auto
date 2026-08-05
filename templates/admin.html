@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>WORKSMAIL.EXE</title>
+<style>
+@font-face{
+  font-family:'Galmuri11';
+  src:url('{{ url_for('static', filename='fonts/Galmuri11.woff2') }}') format('woff2');
+  font-display:swap;
+}
+:root{
+  --pink-0:#fff0fa; --pink-1:#ffd9f2; --pink-2:#ffbfe9; --pink-3:#ff9ede;
+  --magenta:#ff44c8; --magenta-d:#d619a6;
+  --lav-1:#e9d6ff; --lav-2:#cda9ff; --mint:#b6f5e4;
+  --ink:#5a2a55; --ink-soft:#9b5e90;
+  --bevel-lt:#ffffff; --bevel-dk:#b25f9e; --bevel-dk2:#8a3f7a;
+  --face:#ffd0ef; --win-bg:#ffe6f7;
+}
+*{box-sizing:border-box;}
+html{min-height:100%;}
+body{
+  margin:0; min-height:100vh; font-family:'Galmuri11','MS Gothic','Apple SD Gothic Neo',monospace;
+  font-size:13px; color:var(--ink);
+  background:
+    radial-gradient(circle at 20% 15%, #ffc8ec 0, transparent 45%),
+    radial-gradient(circle at 85% 80%, #d9c0ff 0, transparent 45%),
+    repeating-linear-gradient(45deg,#f9c9ec 0 14px,#f4c0e8 14px 28px);
+  background-attachment:fixed;
+  display:flex; justify-content:center;
+  padding:20px 16px 60px; -webkit-font-smoothing:none;
+}
+
+.raised{ border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:inset -1px -1px 0 var(--bevel-dk), inset 1px 1px 0 #ffe9fa; }
+.sunken{ border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  box-shadow:inset 1px 1px 0 var(--bevel-dk); }
+
+.desktop{width:100%; max-width:820px;}
+.window{
+  background:var(--win-bg);
+  border:3px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+  box-shadow:0 0 0 1px var(--magenta-d), 6px 6px 0 rgba(150,40,120,.35), 0 0 40px rgba(255,80,200,.5);
+}
+.titlebar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:5px 8px;
+  background:linear-gradient(90deg,var(--magenta) 0%,var(--pink-3) 60%,var(--lav-2) 100%);
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); letter-spacing:.5px;
+}
+.title-text{font-size:13px;}
+.title-btns{display:flex; gap:3px;}
+.tbtn{width:20px;height:18px;line-height:1;font-size:11px;background:var(--face);color:var(--ink);
+  border:2px solid;border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);}
+.tbtn-x{background:#ff8fcf;}
+
+.menubar{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:5px 8px; background:var(--pink-1); border-bottom:2px solid var(--bevel-dk);
+}
+.menu-spacer{flex:1;}
+.menu-info{font-size:11px; color:var(--ink-soft);}
+.menu-link{
+  font-size:11px; color:var(--ink); cursor:pointer; text-decoration:none;
+  padding:3px 9px; background:var(--face);
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+}
+.menu-link:hover{background:linear-gradient(var(--pink-2),var(--pink-3));}
+
+.body{padding:14px;}
+
+.panel{
+  background:var(--pink-0);
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  padding:10px; margin-bottom:14px;
+}
+.panel-title{
+  background:linear-gradient(90deg,var(--magenta),var(--pink-3));
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d);
+  padding:4px 10px; margin:-10px -10px 10px; font-size:12px; font-weight:bold;
+  display:flex; align-items:center; gap:6px;
+}
+.panel-desc{color:var(--ink-soft); font-size:11px; margin:-4px 0 10px;}
+
+table{width:100%; border-collapse:collapse; font-size:12px; margin-bottom:10px;}
+th{text-align:left; color:var(--magenta-d); font-size:10px; padding:4px 6px; border-bottom:2px solid var(--pink-3);}
+td{padding:6px; border-bottom:1px dashed var(--pink-2); vertical-align:middle;}
+.muted{color:var(--ink-soft); font-size:11px;}
+.badge{display:inline-block; font-size:9px; padding:2px 6px; margin-left:4px;
+  background:var(--mint); color:#1f7a64; border:1px solid #3aa78f;}
+
+.row-form{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+.inline-form{display:inline;}
+
+input[type=text], input[type=email], input[type=password], input[type=number],
+input[type=time], select{
+  font-family:inherit; font-size:12px; color:var(--ink); background:#fff;
+  padding:6px 8px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+}
+
+button, .btn{
+  font-family:inherit; font-size:12px; color:var(--ink); cursor:pointer;
+  padding:6px 12px; background:linear-gradient(var(--pink-1),var(--pink-2));
+  border:2px solid; border-color:var(--bevel-lt) var(--bevel-dk2) var(--bevel-dk2) var(--bevel-lt);
+}
+button:hover, .btn:hover{background:linear-gradient(var(--pink-2),var(--pink-3));}
+button:active, .btn:active{border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2); transform:translateY(1px);}
+button.primary{
+  color:#fff; text-shadow:1px 1px 0 var(--magenta-d); font-weight:bold;
+  background:linear-gradient(var(--magenta),var(--magenta-d));
+}
+button.primary:hover{background:linear-gradient(var(--magenta-d),var(--magenta));}
+button.danger{background:linear-gradient(#ff9ede,#ff5aa8); color:#fff; text-shadow:1px 1px 0 var(--magenta-d);}
+button.danger:hover{background:linear-gradient(#ff5aa8,var(--magenta-d));}
+
+.flash{padding:8px 12px; font-size:12px; margin-bottom:12px; line-height:1.5;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.flash.error{background:#ffd9ec; color:var(--magenta-d);}
+.flash.ok{background:var(--mint); color:#1f7a64;}
+.flash.warn{background:var(--lav-1); color:#5a2a90;}
+
+.problems{background:var(--lav-1); color:#5a2a90; font-size:12px; padding:10px 14px; margin-bottom:14px;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);}
+.problems ul{margin:6px 0 0; padding-left:18px;}
+
+.next-due{font-size:12px; color:var(--magenta-d); font-weight:bold; margin-top:8px;
+  background:var(--mint); display:inline-block; padding:4px 10px; border:1px solid #3aa78f; color:#1f7a64;}
+
+.console{
+  margin:0; padding:8px; height:220px; overflow:auto;
+  background:#2a0a28; color:#ff9be8; font-family:'Galmuri11',monospace; font-size:11px; line-height:1.5;
+  border:2px solid; border-color:var(--bevel-dk2) var(--bevel-lt) var(--bevel-lt) var(--bevel-dk2);
+  white-space:pre-wrap; word-break:break-all; text-shadow:0 0 4px rgba(255,100,210,.5);
+}
+.console::-webkit-scrollbar{width:12px;}
+.console::-webkit-scrollbar-thumb{background:var(--magenta); border:2px solid #2a0a28;}
+
+@media(max-width:640px){
+  .row-form{flex-direction:column; align-items:stretch;}
+}
+</style>
+</head>
+<body>
+<div class="desktop">
+  <div class="window">
+    <div class="titlebar">
+      <span class="title-text">★ WORKSMAIL.EXE — 공용메일 요약봇 관리자 ★</span>
+      <div class="title-btns"><span class="tbtn">_</span><span class="tbtn">□</span><span class="tbtn tbtn-x">×</span></div>
+    </div>
+    <div class="menubar">
+      <span class="menu-info">📬 로그인됨</span>
+      <div class="menu-spacer"></div>
+      <a class="menu-link" href="#admin-password">🔒 비밀번호 변경</a>
+      <a class="menu-link" href="{{ url_for('logout') }}">🚪 로그아웃</a>
+    </div>
+
+    <div class="body">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% if problems %}
+      <div class="problems">
+        <strong>⚠ 아직 실행할 수 없어요 — 아래를 채워주세요</strong>
+        <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <!-- 모니터링 계정 -->
+      <div class="panel">
+        <div class="panel-title">📥 모니터링할 메일주소 목록</div>
+        <p class="panel-desc">여기 등록된 공용 계정들의 받은편지함을 IMAP으로 수집해요.</p>
+        <table>
+          <tr><th>이름</th><th>이메일</th><th>비밀번호 변경</th><th></th></tr>
+          {% for a in cfg.accounts %}
+          <tr>
+            <td>{{ a.name }}{% if cfg.sender.email == a.email %}<span class="badge">발송계정</span>{% endif %}</td>
+            <td>{{ a.email }}</td>
+            <td>
+              <form class="row-form inline-form" method="post" action="{{ url_for('accounts_password') }}">
+                <input type="hidden" name="email" value="{{ a.email }}">
+                <input type="password" name="password" placeholder="새 비밀번호" size="12">
+                <button type="submit">변경</button>
+              </form>
+            </td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('accounts_delete') }}"
+                    onsubmit="return confirm('{{ a.email }} 계정을 삭제할까요?');">
+                <input type="hidden" name="email" value="{{ a.email }}">
+                <button type="submit" class="danger">삭제</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted">아직 등록된 계정이 없어요.</td></tr>
+          {% endfor %}
+        </table>
+        <form class="row-form" method="post" action="{{ url_for('accounts_add') }}">
+          <input type="text" name="name" placeholder="이름 (예: info)" size="10">
+          <input type="email" name="email" placeholder="이메일" required size="18">
+          <input type="password" name="password" placeholder="비밀번호(또는 외부앱 비밀번호)" required size="18">
+          <button type="submit" class="primary">＋ 계정 추가</button>
+        </form>
+      </div>
+
+      <!-- 수신자 -->
+      <div class="panel">
+        <div class="panel-title">📤 요약 메일을 받을 사람</div>
+        <p class="panel-desc">여기 등록된 주소로 요약 리포트가 발송돼요.</p>
+        <table>
+          <tr><th>이메일</th><th></th></tr>
+          {% for r in cfg.recipients %}
+          <tr>
+            <td>{{ r }}</td>
+            <td>
+              <form class="inline-form" method="post" action="{{ url_for('recipients_delete') }}"
+                    onsubmit="return confirm('{{ r }} 수신자를 삭제할까요?');">
+                <input type="hidden" name="email" value="{{ r }}">
+                <button type="submit" class="danger">삭제</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="2" class="muted">아직 등록된 수신자가 없어요.</td></tr>
+          {% endfor %}
+        </table>
+        <form class="row-form" method="post" action="{{ url_for('recipients_add') }}">
+          <input type="email" name="email" placeholder="추가할 이메일" required size="22">
+          <button type="submit" class="primary">＋ 수신자 추가</button>
+        </form>
+      </div>
+
+      <!-- 발송 계정 -->
+      <div class="panel">
+        <div class="panel-title">✉ 발송 계정</div>
+        <p class="panel-desc">요약 메일을 실제로 보낼 때 쓸 계정이에요 (위 목록 중 선택).</p>
+        <form class="row-form" method="post" action="{{ url_for('sender_save') }}">
+          <select name="email">
+            {% for a in cfg.accounts %}
+            <option value="{{ a.email }}" {% if cfg.sender.email == a.email %}selected{% endif %}>{{ a.email }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="display_name" placeholder="보내는 이름"
+                 value="{{ cfg.sender.display_name or '공용메일 요약' }}" size="16">
+          <button type="submit">저장</button>
+        </form>
+      </div>
+
+      <!-- 스케줄 -->
+      <div class="panel">
+        <div class="panel-title">⏱ 취합 단위 &amp; 발송 시각</div>
+        <p class="panel-desc">
+          "발송 시각"은 <b>맨 처음 한 번</b>만 정해요 (예: 08:00). 그 뒤로는 실제로
+          발송한 시각을 기준으로 "취합 간격"만큼씩 계속 더해가며 반복돼요
+          (예: 08:00에 첫 발송 → 간격 12시간이면 다음은 20:00, 그다음은 다음날 08:00...).
+        </p>
+        <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
+          <label>취합 간격
+            <select name="interval_hours">
+              {% for h in [1,2,3,4,6,8,12,24] %}
+              <option value="{{ h }}" {% if cfg.schedule.interval_hours|float == h %}selected{% endif %}>{{ h }}시간마다</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>첫 발송 시각
+            <input type="time" name="anchor_time" value="{{ cfg.schedule.anchor_time }}">
+          </label>
+          <button type="submit" class="primary">저장</button>
+        </form>
+        {% if next_due_preview %}
+        <div class="next-due">🕐 지금 확인하면(미리보기): {{ next_due_preview.strftime('%Y-%m-%d %H:%M') }}
+          <span style="font-weight:normal">(= 지금 + 취합 간격)</span></div>
+        {% endif %}
+      </div>
+
+      <!-- Gemini -->
+      <div class="panel">
+        <div class="panel-title">🤖 Gemini API</div>
+        <p class="panel-desc">비워두고 저장하면 기존 키가 그대로 유지돼요.</p>
+        <form class="row-form" method="post" action="{{ url_for('gemini_save') }}">
+          <input type="password" name="api_key" placeholder="{{ '저장된 키 있음 (변경하려면 입력)' if cfg.gemini.api_key else 'API 키 입력' }}" size="26">
+          <input type="text" name="model" value="{{ cfg.gemini.model }}" size="18">
+          <button type="submit">저장</button>
+        </form>
+      </div>
+
+      <!-- 연결 테스트 -->
+      <div class="panel">
+        <div class="panel-title">🔌 연결 테스트</div>
+        <p class="panel-desc">저장된 설정으로 IMAP/SMTP/Gemini에 실제로 접속해봐요.</p>
+        <form method="post" action="{{ url_for('test_connection') }}">
+          <button type="submit" class="primary">지금 테스트 ♥</button>
+        </form>
+      </div>
+
+      <!-- 최근 로그 -->
+      <div class="panel">
+        <div class="panel-title">📜 최근 로그</div>
+        <pre class="console">{% for line in log_tail %}{{ line }}
+{% else %}(아직 로그가 없어요){% endfor %}</pre>
+      </div>
+
+      <!-- 관리자 비밀번호 변경 -->
+      <div class="panel" id="admin-password">
+        <div class="panel-title">🔒 관리자 비밀번호 변경</div>
+        <form class="row-form" method="post" action="{{ url_for('admin_password_save') }}">
+          <input type="password" name="password" placeholder="새 비밀번호" required>
+          <input type="password" name="password2" placeholder="새 비밀번호 확인" required>
+          <button type="submit">변경</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

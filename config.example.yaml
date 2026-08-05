@@ -1,0 +1,62 @@
+# ============================================================
+# 네이버 웍스 공용계정 일일 메일 요약 - 설정 파일
+# 이 파일을 config.yaml 로 복사한 뒤 실제 값을 채워 넣으세요.
+# (config.yaml 에는 비밀번호가 들어가므로 절대 외부에 공유하지 마세요)
+# ============================================================
+
+# IMAP/SMTP 서버 (네이버 웍스 기본값 - 보통 그대로 두면 됩니다)
+imap:
+  host: imap.worksmobile.com
+  port: 993
+smtp:
+  host: smtp.worksmobile.com
+  port: 587
+
+# 매일 수집할 공용 계정 목록 (원하는 만큼 추가 가능)
+# password 에는 로그인 비밀번호 또는 '앱 비밀번호'를 넣습니다.
+#   - 2단계 인증을 쓰는 계정이면 반드시 앱 비밀번호를 발급해서 넣으세요.
+accounts:
+  - name: "info (공식 대표메일)"
+    email: "info@dobedub.com"
+    password: "여기에_비밀번호_또는_앱비밀번호"
+  - name: "base (인프라 계약관리)"
+    email: "base@dobedub.com"
+    password: "여기에_비밀번호_또는_앱비밀번호"
+
+# 요약 리포트를 발송할 때 사용할 '보내는 계정'
+# (위 공용 계정 중 하나를 그대로 써도 되고, 별도 계정을 써도 됩니다)
+sender:
+  email: "info@dobedub.com"
+  password: "여기에_비밀번호_또는_앱비밀번호"
+  display_name: "공용메일 일일요약"
+
+# 요약 리포트를 받을 개인 계정 목록
+# 사람을 추가/제외하려면 아래 줄만 추가하거나 지우면 됩니다(코드 수정 불필요).
+recipients:
+  - "kimdh@dobedub.com"
+  # - "another-person@dobedub.com"
+
+# 제미나이(Gemini) API 설정
+gemini:
+  api_key: "여기에_제미나이_API_키"
+  model: "gemini-flash-latest"   # 빠르고 저렴. 더 정교하게: gemini-pro-latest
+  # ※ gemini-2.5-flash 처럼 버전을 못박은 이름은 구글이 구모델을 내리면 404가
+  #    날 수 있어, 항상 최신 안정판을 가리키는 -latest 별칭을 기본값으로 씁니다.
+
+# 처음 실행 시(또는 --since-hours 미지정 시) 몇 시간 전까지의 메일을 볼지
+lookback_hours: 24
+# 각 메일 본문을 요약에 넣을 때 최대 글자수 (길수록 요약 품질↑, 비용↑)
+body_char_limit: 2000
+
+# 취합 간격(interval_hours) & 발송(기준) 시각(anchor_time) — --watch-once 모드가 사용.
+# 예) anchor_time 08:00 + interval_hours 12 -> 매일 08:00, 20:00 두 번 발송.
+#     interval_hours 를 24로 두면 하루에 한 번만 발송.
+# 관리자 UI(admin_ui.py)에서 이 값을 편집할 수도 있습니다.
+schedule:
+  interval_hours: 24
+  anchor_time: "08:00"
+
+# 관리자 UI(admin_ui.py, http://127.0.0.1:5000) 로그인 비밀번호.
+# 비워두면 admin_ui.py 최초 접속 시 직접 설정하게 됩니다.
+admin_ui:
+  password: ""
