@@ -275,57 +275,85 @@ schtasks /Create /SC MINUTE /MO 10 /TN "WorksMail Watch" /TR $taskPath /RL LIMIT
 
 ---
 
-## 9. 다른 PC로 이전하기
+## 9. 다른 PC로 이전하기 (Git 기반)
 
-상시 켜두는 PC를 바꾸거나, 지금 PC에서 새 PC로 옮길 때의 절차입니다.
+상시 켜두는 PC를 바꾸거나, 지금 PC에서 새 PC로 옮길 때의 절차입니다. 코드는
+**GitHub 저장소**(`https://github.com/ganzyKIM/worksmail_auto`)로 관리하고,
+**비밀번호가 든 `config.yaml`만 별도로(USB로만)** 옮기는 방식입니다.
 
-> 💡 **제일 쉬운 방법은 맨 위 "원클릭 설치" 섹션의 `WorksMailSetup.exe`를 새 PC에
-> 옮겨서 실행하는 것입니다.** 아래는 그걸 쓰지 않고 직접 옮기고 싶을 때의 수동 절차입니다.
+> ⚠️ `config.yaml`·`state.json`·`worksmail.log`는 `.gitignore`에 등록되어 있어
+> **git에는 절대 올라가지 않습니다.** 저장소가 공개(public)든 비공개(private)든
+> 이 파일들을 임의로 `git add -f` 하지 마세요 — 회사 메일 비밀번호와 Gemini API
+> 키가 그대로 노출됩니다.
 
 ### 9-1. 옮길 것 / 새로 만들 것
 
-| 항목 | 옮기나요? | 방법 |
-|------|-----------|------|
-| 코드 전체 (`.py`, `templates/`, `requirements*.txt`, `*.bat`, `README.md`) | ✅ 옮김 | git 저장소 통째로 복사 (아래 참고) |
-| `config.yaml` (계정 비밀번호, Gemini 키, 관리자 UI 비밀번호 포함) | ✅ 옮김 | **반드시 USB로만.** 메일·메신저·클라우드 동기화 폴더 금지 |
-| `state.json` (마지막 발송/다음 예정 시각) | 옮기면 좋음(선택) | 옮기면 스케줄이 끊기지 않고 이어짐. 안 옮겨도 새 PC에서 다음 틱에 자동으로 다시 초기화됨 |
-| `.venv`, `__pycache__`, `.pytest_cache` | ❌ 옮기지 않음 | 새 PC에서 새로 생성 (용량만 크고 이식 안 됨) |
-| `worksmail.log` | 옮길 필요 없음 | 참고용 기록일 뿐 |
+| 항목 | 옮기는 방법 |
+|------|-----------|
+| 코드 전체 (`.py`, `templates/`, `requirements*.txt`, `*.bat`, `README.md`) | `git clone` (아래 9-3 참고) |
+| `config.yaml` (계정 비밀번호, Gemini 키, 관리자 UI 비밀번호 포함) | **반드시 USB로만.** 메일·메신저·클라우드 동기화 폴더 금지, git에도 올리지 않음 |
+| `state.json` (마지막 발송/다음 예정 시각) | 옮기면 좋음(선택). 옮기면 스케줄이 끊기지 않고 이어짐. 안 옮겨도 새 PC에서 다음 틱에 자동으로 다시 초기화됨 |
+| `.venv`, `__pycache__`, `.claude` | ❌ 옮기지 않음. 새 PC에서 새로 생성 |
+| `worksmail.log` | 옮길 필요 없음. 참고용 기록일 뿐 |
 
-### 9-2. 이식용 압축 파일 만들기 (지금 PC에서)
+### 9-2. 지금 PC에서 할 일 — 코드 최신화 + config 준비
 
 ```powershell
-Compress-Archive -Path ".git",".gitignore","README.md","config.example.yaml","config.yaml","requirements.txt","requirements-dev.txt","run.bat","run_watch_once.bat","run_admin_ui.bat","templates","test_worksmail_digest.py","worksmail_digest.py","admin_ui.py","state.json" -DestinationPath "$env:USERPROFILE\Desktop\worksmail_transfer.zip" -Force
+cd C:\Users\PC\Desktop\worksmail
+git add <바뀐 코드 파일>   # config.yaml/state.json/.venv 는 자동으로 제외됨(.gitignore)
+git commit -m "설명"
+git push
 ```
 
-이 zip을 **USB로만** 옮기고, 옮긴 뒤에는 원래 PC에 남은 zip 사본을 삭제하세요
-(회사 메일 비밀번호·Gemini 키가 평문으로 들어있습니다).
+`config.yaml`(과 옮기고 싶으면 `state.json`)만 USB에 복사합니다. 이 두 파일은
+**git에 올라가지 않으므로 항상 USB나 다른 안전한 방법으로 직접 옮겨야 합니다.**
 
 ### 9-3. 새 PC에서 할 일
 
 1. **Python 설치 확인**: `python --version` (없으면 python.org에서 설치, "Add to PATH" 체크)
-2. **압축 풀기**: 원하는 위치(예: `C:\Users\<계정>\Desktop\worksmail`)에 압축 해제
-3. **가상환경 새로 생성**:
+2. **저장소 클론**:
    ```powershell
-   cd C:\Users\<계정>\Desktop\worksmail
+   cd C:\Users\<계정>\Desktop
+   git clone https://github.com/ganzyKIM/worksmail_auto.git worksmail
+   cd worksmail
+   ```
+   (처음 클론할 때 GitHub 로그인 창이 뜨면 ganzyKIM 계정으로 로그인)
+3. **USB에서 `config.yaml`(과 있다면 `state.json`) 복사** → `worksmail` 폴더 안에 붙여넣기
+4. **가상환경 새로 생성**:
+   ```powershell
    python -m venv .venv
    .\.venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    pip install -r requirements-dev.txt
    ```
-4. **연결 확인**:
+5. **연결 확인**:
    ```powershell
    python worksmail_digest.py --test
    ```
    실패하면 새 PC의 네트워크/방화벽이 993·587 포트 아웃바운드를 막고 있는지 확인
-5. **관리자 UI로 설정 재확인** (선택): `python admin_ui.py` → http://127.0.0.1:5000 →
+6. **관리자 UI로 설정 재확인** (선택): `python admin_ui.py` → http://127.0.0.1:5000 →
    계정·수신자·스케줄이 제대로 옮겨왔는지 훑어보기
-6. **작업 스케줄러 등록** (6번 섹션의 `schtasks` 명령 그대로 실행)
-7. **다음날(또는 다음 예정 시각) 확인**: 수신자에게 요약 메일이 도착했는지,
+7. **작업 스케줄러 등록** (6번 섹션의 `schtasks` 명령 그대로 실행)
+8. **다음날(또는 다음 예정 시각) 확인**: 수신자에게 요약 메일이 도착했는지,
    `worksmail.log`에 오류가 없는지 확인
 
-### 9-4. 예전 PC 정리
+### 9-4. 예전 PC 정리 (중요 — 두 PC 동시 실행 금지)
 
-새 PC에서 정상 동작을 확인했다면, 예전 PC에서:
-- 등록해둔 작업 스케줄러 작업 삭제: `schtasks /Delete /TN "WorksMail Watch" /F`
-- `config.yaml` 삭제 또는 최소한 다른 사람이 접근 못 하는 곳으로 이동
+**새 PC 스케줄러를 켜기 전에 반드시 예전 PC 것부터 꺼야 합니다.** 두 PC 모두
+작업 스케줄러가 살아있으면 같은 요약 메일이 두 번 발송됩니다.
+
+- 예전 PC 작업 스케줄러 삭제: `schtasks /Delete /TN "WorksMail Watch" /F`
+- 예전 PC에서 `admin_ui.py`가 실행 중이면 콘솔 창을 닫아 종료
+- 새 PC에서 정상 동작(7~8번) 확인 후, 예전 PC의 `config.yaml`은 삭제하거나
+  최소한 다른 사람이 접근 못 하는 곳으로 이동
+
+### 9-5. 앞으로 코드를 고칠 때
+
+두 PC(또는 개발용 PC)에서 코드를 계속 고친다면, 항상 최신 코드를 받고 시작하세요:
+
+```powershell
+git pull
+```
+
+`config.yaml`·`state.json`은 git 추적 대상이 아니므로 `git pull` 해도 그대로
+유지됩니다. 걱정하지 않아도 됩니다.
