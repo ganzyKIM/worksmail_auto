@@ -16,25 +16,25 @@ smtp:
 # password 에는 로그인 비밀번호 또는 '앱 비밀번호'를 넣습니다.
 #   - 2단계 인증을 쓰는 계정이면 반드시 앱 비밀번호를 발급해서 넣으세요.
 accounts:
-  - name: "info (공식 대표메일)"
-    email: "info@dobedub.com"
+  - name: "info (대표메일)"
+    email: "info@example.com"
     password: "여기에_비밀번호_또는_앱비밀번호"
-  - name: "base (인프라 계약관리)"
-    email: "base@dobedub.com"
+  - name: "base (계약관리)"
+    email: "base@example.com"
     password: "여기에_비밀번호_또는_앱비밀번호"
 
 # 요약 리포트를 발송할 때 사용할 '보내는 계정'
 # (위 공용 계정 중 하나를 그대로 써도 되고, 별도 계정을 써도 됩니다)
 sender:
-  email: "info@dobedub.com"
+  email: "info@example.com"
   password: "여기에_비밀번호_또는_앱비밀번호"
   display_name: "공용메일 일일요약"
 
 # 요약 리포트를 받을 개인 계정 목록
 # 사람을 추가/제외하려면 아래 줄만 추가하거나 지우면 됩니다(코드 수정 불필요).
 recipients:
-  - "kimdh@dobedub.com"
-  # - "another-person@dobedub.com"
+  - "me@example.com"
+  # - "teammate@example.com"
 
 # 제미나이(Gemini) API 설정
 gemini:
