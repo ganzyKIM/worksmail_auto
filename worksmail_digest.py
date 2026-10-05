@@ -19,12 +19,8 @@
   python worksmail_digest.py --date 2026-07-15  # 특정 날짜 메일만 요약해서 발송(테스트용)
   python worksmail_digest.py --date 2026-07-15 --dry-run  # 위와 동일 + 발송은 생략
   python worksmail_digest.py --test     # IMAP/SMTP/Gemini 연결만 점검
-  python worksmail_digest.py --watch-once   # 스케줄(취합 간격+발송 시각)에 따라
-                                             # 지금이 발송할 때인지 확인하고, 맞으면
-                                             # 그때만 실제로 수집·요약·발송한다.
-                                             # 작업 스케줄러가 몇 분 간격으로 이 옵션을
-                                             # 반복 호출하는 방식으로 자동화한다
-                                             # (config.yaml의 schedule 설정을 따름).
+  python worksmail_digest.py --watch-once   # 발송 시각이 지났을 때만 수집·요약·발송
+                                             # (작업 스케줄러가 10분마다 호출)
 
 참고: --date 로 실행하면 state.json(마지막 실행 시각)을 갱신하지 않습니다.
       다음 자동 실행이 --date 테스트로 인해 메일을 건너뛰지 않도록 하기 위함입니다.
