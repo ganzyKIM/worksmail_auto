@@ -254,8 +254,8 @@ button.danger:hover{background:linear-gradient(#ff5aa8,var(--magenta-d));}
       <div class="panel">
         <div class="panel-title">⏱ 취합 단위 &amp; 발송 시각</div>
         <p class="panel-desc">
-          "발송 시각"은 <b>맨 처음 한 번</b>만 정해요 (예: 08:00). 그 뒤로는 실제로
-          발송한 시각을 기준으로 "취합 간격"만큼씩 계속 더해가며 반복돼요
+          "발송 시각"은 <b>맨 처음 한 번</b>만 정해요 (예: 08:00). 그 뒤로는
+          예정 시각에 "취합 간격"만큼씩 계속 더해가며 반복돼요
           (예: 08:00에 첫 발송 → 간격 12시간이면 다음은 20:00, 그다음은 다음날 08:00...).
         </p>
         <form class="row-form" method="post" action="{{ url_for('schedule_save') }}">
